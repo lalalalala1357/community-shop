@@ -193,6 +193,12 @@ function recentEndedProducts(products, count = 6) {
     .slice(0, count);
 }
 
+function renderReopenProductSection(section, listRoot, products) {
+  if (!section || !listRoot) return;
+  section.hidden = !products.length;
+  listRoot.innerHTML = products.map(productCard).join("");
+}
+
 async function activeProductsPage({ category = "全部", cursor = null, pageSize = 10 } = {}) {
   try {
     return await indexedActiveProductsPage({ category, cursor, pageSize });
@@ -529,19 +535,21 @@ async function initHome() {
   const hotProductList = $("#hotProductList");
   const latestProductList = $("#latestProductList");
   const endingProductList = $("#endingProductList");
+  const homeReopenSection = $("#homeReopenSection");
+  const homeReopenProductList = $("#homeReopenProductList");
   announcementList.innerHTML = `<span>公告讀取中...</span>`;
-  [hotProductList, latestProductList, endingProductList].forEach(root => {
+  [hotProductList, latestProductList, endingProductList, homeReopenProductList].forEach(root => {
     if (root) root.innerHTML = `<div class="empty card">商品讀取中...</div>`;
   });
   const [announcements, products, allProducts] = await Promise.all([activeAnnouncements(), activeProducts(), publicProducts()]);
   announcementList.innerHTML = announcements.length ? announcements.map(announcementCard).join("") : `<article class="announcement-item"><span>目前沒有新的公告</span></article>`;
-  renderHomeProductSections({ hotProductList, latestProductList, endingProductList }, products, allProducts);
+  renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeReopenSection, homeReopenProductList }, products, allProducts);
   let renderedLimit = featuredProductLimit();
   window.addEventListener("resize", debounce(() => {
     const nextLimit = featuredProductLimit();
     if (nextLimit === renderedLimit) return;
     renderedLimit = nextLimit;
-    renderHomeProductSections({ hotProductList, latestProductList, endingProductList }, products, allProducts);
+    renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeReopenSection, homeReopenProductList }, products, allProducts);
   }));
 }
 
@@ -553,6 +561,7 @@ function renderHomeProductSections(roots, products, allProducts = products) {
   if (roots.hotProductList) roots.hotProductList.innerHTML = hotProducts.map(hotProductCard).join("") || `<div class="empty card">目前沒有熱門商品，等下一波開團。</div>`;
   if (roots.latestProductList) roots.latestProductList.innerHTML = latestProducts.map(productCard).join("") || storefrontEmptyState({ recentProducts });
   if (roots.endingProductList) roots.endingProductList.innerHTML = endingProducts.map(endingProductCard).join("") || `<div class="empty card">目前沒有即將截止商品</div>`;
+  renderReopenProductSection(roots.homeReopenSection, roots.homeReopenProductList, recentProducts);
 }
 
 function hotProductCard(product, index) {
@@ -602,6 +611,8 @@ async function initPublicProducts() {
   const categoryFilter = $("#categoryFilter");
   const searchInput = $("#productSearch");
   const sortSelect = $("#productSort");
+  const reopenSection = $("#productReopenSection");
+  const reopenList = $("#productReopenList");
   productList.innerHTML = `<div class="empty card">商品讀取中...</div>`;
   const allProducts = await publicProducts();
   let products = allProducts.filter(product => isProductOnSale(product) && !isProductDeadlinePassed(product));
@@ -624,7 +635,13 @@ async function initPublicProducts() {
 
   const render = () => {
     const keyword = searchInput.value.trim().toLowerCase();
+    const matchingAllProducts = allProducts.filter(product => {
+      const matchesCategory = selectedCategory === "全部" || (product.category || "其他") === selectedCategory;
+      const matchesKeyword = !keyword || productSearchText(product).includes(keyword);
+      return matchesCategory && matchesKeyword;
+    });
     const list = filteredProducts();
+    const reopenProducts = recentEndedProducts(matchingAllProducts, 8);
     const totalPages = Math.max(Math.ceil(list.length / pageSize), 1);
     currentPage = Math.min(currentPage, totalPages);
     const visible = list.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -637,14 +654,11 @@ async function initPublicProducts() {
           </div>
         ` : ""}`
       : storefrontEmptyState({
-          recentProducts: recentEndedProducts(allProducts.filter(product => {
-            const matchesCategory = selectedCategory === "全部" || (product.category || "其他") === selectedCategory;
-            const matchesKeyword = !keyword || productSearchText(product).includes(keyword);
-            return matchesCategory && matchesKeyword;
-          })),
+          recentProducts: reopenProducts,
           keyword,
           category: selectedCategory
         });
+    renderReopenProductSection(reopenSection, reopenList, list.length ? reopenProducts : []);
     $("[data-page-prev]", productList)?.addEventListener("click", () => {
       currentPage -= 1;
       render();
@@ -2105,6 +2119,30 @@ async function allWishes({ activeOnly = false } = {}) {
     .sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0) || createdAtMillis(b) - createdAtMillis(a));
 }
 
+function normalizeWishLookup(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function wishMatchScore(wish, title) {
+  const wishTitle = normalizeWishLookup(wish.title);
+  const targetTitle = normalizeWishLookup(title);
+  if (!wishTitle || !targetTitle) return 0;
+  if (wishTitle === targetTitle) return 100;
+  if (wishTitle.includes(targetTitle) || targetTitle.includes(wishTitle)) return 70;
+  return 0;
+}
+
+function matchingWishes(wishes, title) {
+  return wishes
+    .map(wish => ({ wish, score: wishMatchScore(wish, title) }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score || Number(b.wish.votes || 0) - Number(a.wish.votes || 0))
+    .slice(0, 3);
+}
+
 function wishCard(wish, { admin = false } = {}) {
   const reply = wishAdminReply(wish);
   return `
@@ -2187,10 +2225,59 @@ async function initWishPool() {
   const requestedProductId = getParam("productId");
   const requestedTitle = getParam("title");
   const requestedDescription = getParam("description");
+  const titleInput = $("input[name='title']", formRoot);
+  const phoneInput = $("input[name='phone']", formRoot);
+  const duplicateBox = $("#wishDuplicateBox");
   const prefillMessages = [];
+  let activeWishCache = [];
+
+  const bindDuplicateVoteButtons = afterVote => {
+    $$(".duplicateVoteWishBtn", duplicateBox).forEach(button => button.addEventListener("click", async () => {
+      const phone = phoneInput?.value.trim() || prompt("請輸入手機號碼，用來避免重複投票")?.trim();
+      if (!phone) return;
+      button.disabled = true;
+      button.textContent = "+1 中...";
+      try {
+        await voteWish(button.dataset.id, phone);
+        alert("已幫你 +1！");
+        await afterVote();
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "+1 我也想買";
+      }
+    }));
+  };
+
+  const renderDuplicateSuggestions = (title, { blocking = false } = {}) => {
+    if (!duplicateBox) return [];
+    const matches = matchingWishes(activeWishCache, title);
+    duplicateBox.hidden = !matches.length;
+    duplicateBox.innerHTML = matches.length ? `
+      <div class="wish-duplicate-head">
+        <strong>${blocking ? "已有相同願望" : "已有相似願望"}</strong>
+        <span>${blocking ? "建議直接 +1，避免同一個商品分散票數。" : "可以直接 +1，票數集中比較容易再開團。"}</span>
+      </div>
+      <div class="wish-duplicate-list">
+        ${matches.map(({ wish }) => `
+          <div class="wish-duplicate-item">
+            <img src="${wish.imageUrl || placeholderImage(wish.title || "許願")}" alt="${escapeHtml(wish.title)}">
+            <div>
+              <strong>${escapeHtml(wish.title)}</strong>
+              <p>${escapeHtml(wish.description || "沒有補充說明")}</p>
+              <span class="status status-orange">+1 ${Number(wish.votes || 0)}</span>
+            </div>
+            <button class="btn inline duplicateVoteWishBtn" type="button" data-id="${wish.id}">+1 我也想買</button>
+          </div>
+        `).join("")}
+      </div>
+    ` : "";
+    bindDuplicateVoteButtons(render);
+    return matches;
+  };
 
   if (formRoot && requestedTitle) {
-    const titleInput = $("input[name='title']", formRoot);
     const descriptionInput = $("textarea[name='description']", formRoot);
     if (titleInput) titleInput.value = requestedTitle;
     if (descriptionInput && requestedDescription) descriptionInput.value = requestedDescription;
@@ -2202,7 +2289,6 @@ async function initWishPool() {
       const sourceProduct = await findWishSourceProduct(requestedProductId, requestedTitle);
       if (sourceProduct) {
         await loadProductImages(sourceProduct);
-        const titleInput = $("input[name='title']", formRoot);
         const descriptionInput = $("textarea[name='description']", formRoot);
         const sourceImageInput = $("input[name='sourceImageUrl']", formRoot);
         const sourceImagePreview = $("#wishSourceImagePreview");
@@ -2231,6 +2317,7 @@ async function initWishPool() {
 
   const render = async () => {
     const wishes = await allWishes({ activeOnly: true });
+    activeWishCache = wishes;
     const topWishes = wishes.slice(0, 5);
     const moreWishes = wishes.slice(5);
     $("#topWishList").innerHTML = topWishes.map(wish => wishCard(wish)).join("") || `<div class="empty card">目前還沒有熱門願望</div>`;
@@ -2239,6 +2326,7 @@ async function initWishPool() {
     $("#showAllWishesBtn").textContent = showAllWishes ? "查看更少" : "查看更多";
     $("#wishList").innerHTML = showAllWishes ? moreWishes.map(wish => wishCard(wish)).join("") : "";
     bindWishVoteButtons(render);
+    renderDuplicateSuggestions(titleInput?.value || "");
   };
 
   $("#showAllWishesBtn").addEventListener("click", async () => {
@@ -2246,14 +2334,27 @@ async function initWishPool() {
     await render();
   });
 
+  titleInput?.addEventListener("input", debounce(event => {
+    renderDuplicateSuggestions(event.target.value);
+  }, 160));
+
   formRoot.addEventListener("submit", async event => {
     event.preventDefault();
     const wishForm = event.currentTarget;
     const submitButton = $("button[type='submit'], button", wishForm);
+    const form = new FormData(wishForm);
+    const title = form.get("title").trim();
+    if (!activeWishCache.length) activeWishCache = await allWishes({ activeOnly: true });
+    const exactDuplicate = matchingWishes(activeWishCache, title).find(item => item.score === 100);
+    if (exactDuplicate) {
+      renderDuplicateSuggestions(title, { blocking: true });
+      $("#wishMessage").innerHTML = `<div class="notice">已有相同願望，請直接 +1，票數集中比較容易再開團。</div>`;
+      duplicateBox?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     submitButton.disabled = true;
     submitButton.textContent = "送出中...";
     try {
-      const form = new FormData(wishForm);
       const phone = form.get("phone").trim();
       const uploadedImageUrl = await uploadProductImage(form.get("image"));
       const imageUrl = uploadedImageUrl || form.get("sourceImageUrl") || "";
