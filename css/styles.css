@@ -402,6 +402,23 @@ section + section {
   transform: translateY(-2px);
 }
 
+.optimized-image {
+  background:
+    linear-gradient(90deg, rgba(255, 241, 223, 0.92), rgba(255, 250, 243, 0.92), rgba(255, 241, 223, 0.92)),
+    var(--soft);
+  background-size: 220% 100%;
+  animation: imageSkeleton 1.1s ease-in-out infinite;
+}
+
+.optimized-image.is-loaded {
+  animation: none;
+  background: var(--soft);
+}
+
+.optimized-image.image-fallback {
+  background: #fff;
+}
+
 .product-card-media,
 .rank-card-media {
   position: relative;
@@ -1856,8 +1873,18 @@ tbody tr:hover {
   }
 }
 
+@keyframes imageSkeleton {
+  from {
+    background-position: 220% 0;
+  }
+  to {
+    background-position: -220% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ticker-group {
+  .ticker-group,
+  .optimized-image {
     animation: none;
   }
 }

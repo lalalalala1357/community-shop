@@ -111,6 +111,35 @@ function placeholderImage(name = "社區團購") {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function optimizedImage(src, alt, { className = "", eager = false, fallbackName = alt } = {}) {
+  const fallback = placeholderImage(fallbackName || alt);
+  const resolvedSrc = src || fallback;
+  const classes = ["optimized-image", className].filter(Boolean).join(" ");
+  return `<img class="${escapeHtml(classes)}" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(alt || "")}"${eager ? " fetchpriority=\"high\"" : " loading=\"lazy\""} decoding="async" data-fallback-src="${escapeHtml(fallback)}">`;
+}
+
+function handleOptimizedImageLoad(event) {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.dataset.fallbackSrc) return;
+  image.classList.add("is-loaded");
+  image.classList.remove("is-loading");
+}
+
+function handleOptimizedImageError(event) {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.dataset.fallbackSrc) return;
+  if (image.dataset.fallbackApplied === "true") {
+    image.classList.add("is-loaded");
+    return;
+  }
+  image.dataset.fallbackApplied = "true";
+  image.classList.add("image-fallback");
+  image.src = image.dataset.fallbackSrc;
+}
+
+document.addEventListener("load", handleOptimizedImageLoad, true);
+document.addEventListener("error", handleOptimizedImageError, true);
+
 function normalizeProduct(id, data) {
   const product = { id, soldCount: 0, stockLimit: 0, stockUnlimited: false, isActive: true, category: "其他", saleStart: "", saleEnd: "", imageUrl: "", imageUrls: [], ...data };
   product.hasEmbeddedImages = Array.isArray(data.imageUrls) && data.imageUrls.some(Boolean);
@@ -481,14 +510,14 @@ function productGallery(product) {
     <div class="product-gallery" data-gallery>
       <div class="product-slider" data-slider>
         ${images.map((url, index) => `
-          <img class="product-image" src="${url}" alt="${escapeHtml(product.name)} ${index + 1}" ${index ? "loading=\"lazy\"" : ""} decoding="async">
+          ${optimizedImage(url, `${product.name} ${index + 1}`, { className: "product-image", eager: index === 0, fallbackName: product.name })}
         `).join("")}
       </div>
       ${images.length > 1 ? `
         <button class="gallery-arrow gallery-prev" type="button" data-gallery-prev aria-label="上一張">‹</button>
         <button class="gallery-arrow gallery-next" type="button" data-gallery-next aria-label="下一張">›</button>
         <div class="product-thumbs">
-          ${images.map((url, index) => `<button class="gallery-thumb ${index === 0 ? "active" : ""}" type="button" data-gallery-index="${index}" aria-label="第 ${index + 1} 張圖片"><img src="${url}" alt="${escapeHtml(product.name)} ${index + 1}" loading="lazy" decoding="async"></button>`).join("")}
+          ${images.map((url, index) => `<button class="gallery-thumb ${index === 0 ? "active" : ""}" type="button" data-gallery-index="${index}" aria-label="第 ${index + 1} 張圖片">${optimizedImage(url, `${product.name} ${index + 1}`, { fallbackName: product.name })}</button>`).join("")}
         </div>
       ` : ""}
     </div>
@@ -561,7 +590,7 @@ function productCard(product) {
   return `
     <article class="card product-card">
       <a class="product-card-media" href="product.html?id=${encodeURIComponent(product.id)}">
-        <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+        ${optimizedImage(productMainImage(product), product.name)}
         ${statusBadges ? `<div class="product-card-badge">${statusBadges}</div>` : ""}
       </a>
       <div class="product-card-body">
@@ -660,7 +689,7 @@ function homeSpotlightCard(product) {
   return `
     <article class="spotlight-panel">
       <a class="spotlight-media" href="${detailHref}">
-        <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+        ${optimizedImage(productMainImage(product), product.name)}
         <span class="spotlight-label">本週主打</span>
       </a>
       <div class="spotlight-body">
@@ -689,7 +718,7 @@ function hotProductCard(product, index) {
   return `
     <article class="card rank-card">
       <a class="rank-card-media" href="product.html?id=${encodeURIComponent(product.id)}">
-        <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+        ${optimizedImage(productMainImage(product), product.name)}
         <span class="rank-badge">第 ${index + 1} 名</span>
       </a>
       <div class="rank-card-body">
@@ -709,7 +738,7 @@ function endingProductCard(product) {
   const statusBadges = productStatusBadges(product);
   return `
     <article class="card ending-card">
-      <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+      ${optimizedImage(productMainImage(product), product.name)}
       <div>
         <div class="pill-row">
           ${statusBadges}
@@ -955,7 +984,7 @@ async function initProductDetail() {
           <h2>立即預購</h2>
           <form class="form" id="orderForm">
             <div class="order-product-preview">
-              <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+              ${optimizedImage(productMainImage(product), product.name)}
               <div>
                 <p class="eyebrow">預訂商品</p>
                 <h3>${escapeHtml(product.name)}</h3>
@@ -1344,7 +1373,7 @@ function successOrderSummary(order) {
       <div class="card card-body">
         <h2>商品資訊</h2>
         <div class="order-product-mini">
-          <img src="${placeholderImage(order.productName || "商品")}" alt="${escapeHtml(order.productName || "商品")}">
+          ${optimizedImage("", order.productName || "商品")}
           <div>
             <h3>${escapeHtml(order.productName || "-")}</h3>
             <p class="meta">${escapeHtml(order.productCategory || "其他")} · ${Number(order.quantity || 0)} 份</p>
@@ -1537,7 +1566,7 @@ function customerOrderCard(order) {
 
   return `
     <article class="card card-body order-card compact-order-link">
-      <img class="order-thumb" src="${placeholderImage(order.productName || "訂單")}" alt="${escapeHtml(order.productName || "商品")}">
+      ${optimizedImage("", order.productName || "商品", { className: "order-thumb", fallbackName: order.productName || "訂單" })}
       <div class="order-card-main">
         <div class="order-card-title">
           <h3>${escapeHtml(order.productName || "-")}</h3>
@@ -1733,7 +1762,7 @@ function productForm(product = {}, categories = []) {
       <div class="field"><label>規格</label><input name="spec" value="${escapeHtml(product.spec || "")}" required></div>
       <div class="field"><label>描述</label><textarea name="description">${escapeHtml(product.description || "")}</textarea></div>
       <div class="field"><label>商品圖片（可上傳多張）</label><input name="images" type="file" accept="image/*" multiple></div>
-      ${product.imageUrls?.length ? `<div class="field"><label>目前圖片</label><div class="form-image-grid">${product.imageUrls.map((url, index) => `<img class="form-image-preview" src="${url}" alt="${escapeHtml(product.name || "商品圖片")} ${index + 1}">`).join("")}</div></div>` : ""}
+      ${product.imageUrls?.length ? `<div class="field"><label>目前圖片</label><div class="form-image-grid">${product.imageUrls.map((url, index) => optimizedImage(url, `${product.name || "商品圖片"} ${index + 1}`, { className: "form-image-preview", fallbackName: product.name || "商品圖片" })).join("")}</div></div>` : ""}
       <div class="field"><label>截單時間</label><input name="deadline" type="datetime-local" value="${toLocalInput(product.deadline)}" required></div>
       <div class="field"><label>取貨時間</label><input name="pickupTime" type="datetime-local" value="${toLocalInput(product.pickupTime)}" required></div>
       <div class="field"><label>取貨地點</label><input name="pickupLocation" value="${escapeHtml(product.pickupLocation || "")}" required></div>
@@ -1839,7 +1868,7 @@ async function initAdminProducts() {
       currentProducts = currentProducts.sort((a, b) => Number(b.isActive !== false) - Number(a.isActive !== false));
       $("#productsTable").innerHTML = currentProducts.map(product => `
         <tr>
-          <td><img class="table-thumb" src="${productMainImage(product)}" alt="${escapeHtml(product.name || "商品")}"></td>
+          <td>${optimizedImage(productMainImage(product), product.name || "商品", { className: "table-thumb" })}</td>
           <td><strong>${escapeHtml(product.name)}</strong><br><span class="meta">${escapeHtml(product.spec || "無規格")}</span></td>
           <td><span class="pill">${escapeHtml(product.category || "其他")}</span></td>
           <td>${money(product.price)}</td>
@@ -2391,7 +2420,7 @@ function wishCard(wish, { admin = false } = {}) {
   const reply = wishAdminReply(wish);
   return `
     <article class="card product-card wish-card">
-      <img src="${wish.imageUrl || placeholderImage(wish.title || "許願")}" alt="${escapeHtml(wish.title)}">
+      ${optimizedImage(wish.imageUrl, wish.title || "許願")}
       <div class="product-card-body">
         <div class="section-head">
           <h3>${admin ? `<button class="link-button wishDetailBtn" data-id="${wish.id}">${escapeHtml(wish.title)}</button>` : escapeHtml(wish.title)}</h3>
@@ -2509,7 +2538,7 @@ async function initWishPool() {
       <div class="wish-duplicate-list">
         ${matches.map(({ wish }) => `
           <div class="wish-duplicate-item">
-            <img src="${wish.imageUrl || placeholderImage(wish.title || "許願")}" alt="${escapeHtml(wish.title)}">
+            ${optimizedImage(wish.imageUrl, wish.title || "許願")}
             <div>
               <strong>${escapeHtml(wish.title)}</strong>
               <p>${escapeHtml(wish.description || "沒有補充說明")}</p>
@@ -2547,7 +2576,7 @@ async function initWishPool() {
           sourceImageInput.value = sourceImageUrl;
           sourceImagePreview.hidden = false;
           sourceImagePreview.innerHTML = `
-            <img src="${escapeHtml(sourceImageUrl)}" alt="${escapeHtml(sourceProduct.name || "原商品圖片")}">
+            ${optimizedImage(sourceImageUrl, sourceProduct.name || "原商品圖片")}
             <span>已帶入原商品圖片，若上傳新照片會改用新照片。</span>
           `;
           prefillMessages.push("商品圖片");
