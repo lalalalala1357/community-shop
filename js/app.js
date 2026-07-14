@@ -287,6 +287,17 @@ function shouldOfferProductWish(product, remaining = productRemainingCount(produ
   return product.isActive !== false && (isProductDeadlinePassed(product) || saleEnded || soldOut);
 }
 
+async function findWishSourceProduct(productId, title) {
+  if (productId) {
+    const productSnap = await getDoc(doc(db, "products", productId));
+    if (productSnap.exists()) return normalizeProduct(productSnap.id, productSnap.data());
+  }
+  if (!title) return null;
+  const productSnap = await getDocs(query(collection(db, "products"), where("name", "==", title), limit(1)));
+  const productDoc = productSnap.docs[0];
+  return productDoc ? normalizeProduct(productDoc.id, productDoc.data()) : null;
+}
+
 function deadlineCountdownText(value) {
   const deadline = toDate(value);
   if (!deadline) return "";
@@ -2186,11 +2197,10 @@ async function initWishPool() {
     prefillMessages.push("商品名稱");
   }
 
-  if (formRoot && requestedProductId) {
+  if (formRoot && (requestedProductId || requestedTitle)) {
     try {
-      const productSnap = await getDoc(doc(db, "products", requestedProductId));
-      if (productSnap.exists()) {
-        const sourceProduct = normalizeProduct(productSnap.id, productSnap.data());
+      const sourceProduct = await findWishSourceProduct(requestedProductId, requestedTitle);
+      if (sourceProduct) {
         await loadProductImages(sourceProduct);
         const titleInput = $("input[name='title']", formRoot);
         const descriptionInput = $("textarea[name='description']", formRoot);
