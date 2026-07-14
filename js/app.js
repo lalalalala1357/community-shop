@@ -65,6 +65,26 @@ async function copyText(value) {
   textarea.remove();
 }
 
+function showToast(message, type = "success") {
+  let stack = $("#toastStack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "toastStack";
+    stack.className = "toast-stack";
+    stack.setAttribute("aria-live", "polite");
+    document.body.append(stack);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  stack.append(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  }, 2200);
+}
+
 const statusMap = {
   "已下單": "blue",
   "可取貨": "green",
@@ -2276,15 +2296,18 @@ async function initWishPool() {
   const bindDuplicateVoteButtons = afterVote => {
     $$(".duplicateVoteWishBtn", duplicateBox).forEach(button => button.addEventListener("click", async () => {
       const phone = phoneInput?.value.trim() || prompt("請輸入手機號碼，用來避免重複投票")?.trim();
-      if (!phone) return;
+      if (!phone) {
+        showToast("請先輸入手機號碼", "warning");
+        return;
+      }
       button.disabled = true;
       button.textContent = "+1 中...";
       try {
         await voteWish(button.dataset.id, phone);
-        alert("已幫你 +1！");
+        showToast("已幫你 +1！");
         await afterVote();
       } catch (error) {
-        alert(error.message);
+        showToast(error.message || "+1 失敗，請再試一次。", "danger");
       } finally {
         button.disabled = false;
         button.textContent = "+1 我也想買";
@@ -2427,14 +2450,18 @@ async function initWishPool() {
 
 function bindWishVoteButtons(afterVote) {
   $$(".voteWishBtn").forEach(button => button.addEventListener("click", async () => {
-    const phone = prompt("請輸入手機號碼，用來避免重複投票")?.trim();
-    if (!phone) return;
+    const formPhone = $("#wishForm input[name='phone']")?.value.trim();
+    const phone = formPhone || prompt("請輸入手機號碼，用來避免重複投票")?.trim();
+    if (!phone) {
+      showToast("請先輸入手機號碼", "warning");
+      return;
+    }
     try {
       await voteWish(button.dataset.id, phone);
-      alert("已幫你 +1！");
+      showToast("已幫你 +1！");
       await afterVote();
     } catch (error) {
-      alert(error.message);
+      showToast(error.message || "+1 失敗，請再試一次。", "danger");
     }
   }));
 }
