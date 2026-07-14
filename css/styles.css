@@ -1317,6 +1317,114 @@ tbody tr:hover {
   margin-top: 0;
 }
 
+.spotlight-section[hidden] {
+  display: none;
+}
+
+.spotlight-panel {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #f2dfca;
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: var(--shadow);
+  animation: fadeIn 0.22s ease both;
+}
+
+.spotlight-media {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  min-height: 210px;
+  background: var(--soft);
+}
+
+.spotlight-media img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  transition: transform 0.22s ease;
+}
+
+.spotlight-panel:hover .spotlight-media img {
+  transform: scale(1.03);
+}
+
+.spotlight-label {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(52, 37, 27, 0.84);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.spotlight-body {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 18px;
+}
+
+.spotlight-body h2,
+.spotlight-body p {
+  margin: 0;
+}
+
+.spotlight-body h2 {
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.spotlight-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spotlight-stats span {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid #f5e4cf;
+  border-radius: var(--radius);
+  background: #fffaf3;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.spotlight-stats strong {
+  color: var(--text);
+}
+
+.spotlight-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.related-section {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+}
+
+.related-section[hidden] {
+  display: none;
+}
+
+.related-section .section-head {
+  margin-top: 0;
+}
+
 .storefront-empty,
 .product-history-head {
   grid-column: 1 / -1;
@@ -1331,25 +1439,42 @@ tbody tr:hover {
 }
 
 .announcement-ticker {
+  overflow: hidden;
   border-bottom: 1px solid var(--border);
   background: #fff7ed;
 }
 
+.announcement-ticker .container {
+  overflow: hidden;
+}
+
 .ticker-track {
   display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  min-height: 38px;
-  padding: 7px 0;
+  overflow: hidden;
+  min-height: 42px;
   color: #9a5a1f;
   font-size: 14px;
   font-weight: 800;
   scrollbar-width: none;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .ticker-track::-webkit-scrollbar {
   display: none;
+}
+
+.ticker-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 100%;
+  padding: 7px 10px 7px 0;
+  animation: tickerScroll 30s linear infinite;
+}
+
+.ticker-track:hover .ticker-group {
+  animation-play-state: paused;
 }
 
 .announcement-item {
@@ -1357,7 +1482,6 @@ tbody tr:hover {
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
-  max-width: min(620px, 86vw);
   min-height: 30px;
   padding: 5px 10px;
   border: 1px solid #fed7aa;
@@ -1370,8 +1494,8 @@ tbody tr:hover {
 }
 
 .announcement-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -1550,6 +1674,21 @@ tbody tr:hover {
   }
 }
 
+@keyframes tickerScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-group {
+    animation: none;
+  }
+}
+
 @media (min-width: 768px) {
   .hero {
     padding: 42px 0 28px;
@@ -1561,6 +1700,14 @@ tbody tr:hover {
 
   .product-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .spotlight-panel {
+    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  }
+
+  .spotlight-media img {
+    aspect-ratio: auto;
   }
 
   .rank-grid {
@@ -1707,6 +1854,27 @@ tbody tr:hover {
 
   .hero-card {
     padding: 24px 18px;
+  }
+
+  .ticker-group {
+    animation-duration: 24s;
+  }
+
+  .spotlight-body {
+    padding: 16px;
+  }
+
+  .spotlight-body h2 {
+    font-size: 21px;
+  }
+
+  .spotlight-foot {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .spotlight-foot .btn {
+    width: 100%;
   }
 
   .ending-card,

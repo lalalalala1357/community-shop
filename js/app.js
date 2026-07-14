@@ -434,6 +434,10 @@ function isProductOrderable(product) {
   return product.isActive !== false && isProductOnSale(product) && !isProductDeadlinePassed(product);
 }
 
+function isProductAvailable(product) {
+  return isProductOrderable(product) && (isProductUnlimited(product) || Number(productRemainingCount(product) || 0) > 0);
+}
+
 function compactDateText(value) {
   const date = toDate(value);
   if (!date) return "-";
@@ -525,15 +529,25 @@ async function activeAnnouncements() {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return createdAtMillis(b) - createdAtMillis(a);
     })
-    .slice(0, 3);
+    .slice(0, 6);
 }
 
 function announcementCard(announcement) {
   return `
-    <article class="announcement-item">
+    <span class="announcement-item">
       <strong>${escapeHtml(announcement.type || "公告")}</strong>
       <span>${escapeHtml(announcement.content || announcement.title || "")}</span>
-    </article>
+    </span>
+  `;
+}
+
+function announcementTicker(announcements) {
+  const items = announcements.length
+    ? announcements.map(announcementCard).join("")
+    : `<span class="announcement-item"><span>目前沒有新的公告</span></span>`;
+  return `
+    <div class="ticker-group">${items}</div>
+    <div class="ticker-group" aria-hidden="true">${items}</div>
   `;
 }
 
@@ -595,6 +609,8 @@ async function initHome() {
   const hotProductList = $("#hotProductList");
   const latestProductList = $("#latestProductList");
   const endingProductList = $("#endingProductList");
+  const homeSpotlightSection = $("#homeSpotlightSection");
+  const homeSpotlight = $("#homeSpotlight");
   const homeReopenSection = $("#homeReopenSection");
   const homeReopenProductList = $("#homeReopenProductList");
   announcementList.innerHTML = `<span>公告讀取中...</span>`;
@@ -602,14 +618,14 @@ async function initHome() {
     if (root) root.innerHTML = `<div class="empty card">商品讀取中...</div>`;
   });
   const [announcements, products, allProducts] = await Promise.all([activeAnnouncements(), activeProducts(), publicProducts()]);
-  announcementList.innerHTML = announcements.length ? announcements.map(announcementCard).join("") : `<article class="announcement-item"><span>目前沒有新的公告</span></article>`;
-  renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeReopenSection, homeReopenProductList }, products, allProducts);
+  announcementList.innerHTML = announcementTicker(announcements);
+  renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeSpotlightSection, homeSpotlight, homeReopenSection, homeReopenProductList }, products, allProducts);
   let renderedLimit = featuredProductLimit();
   window.addEventListener("resize", debounce(() => {
     const nextLimit = featuredProductLimit();
     if (nextLimit === renderedLimit) return;
     renderedLimit = nextLimit;
-    renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeReopenSection, homeReopenProductList }, products, allProducts);
+    renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeSpotlightSection, homeSpotlight, homeReopenSection, homeReopenProductList }, products, allProducts);
   }));
 }
 
@@ -618,10 +634,55 @@ function renderHomeProductSections(roots, products, allProducts = products) {
   const latestProducts = sortProducts(products, "latest").slice(0, featuredProductLimit());
   const endingProducts = sortProducts(products, "deadline").slice(0, 4);
   const recentProducts = recentEndedProducts(allProducts, 4);
+  renderHomeSpotlight(roots.homeSpotlightSection, roots.homeSpotlight, selectSpotlightProduct(products));
   if (roots.hotProductList) roots.hotProductList.innerHTML = hotProducts.map(hotProductCard).join("") || `<div class="empty card">目前沒有熱門商品，等下一波開團。</div>`;
   if (roots.latestProductList) roots.latestProductList.innerHTML = latestProducts.map(productCard).join("") || storefrontEmptyState({ recentProducts });
   if (roots.endingProductList) roots.endingProductList.innerHTML = endingProducts.map(endingProductCard).join("") || `<div class="empty card">目前沒有即將截止商品</div>`;
   renderReopenProductSection(roots.homeReopenSection, roots.homeReopenProductList, recentProducts);
+}
+
+function selectSpotlightProduct(products) {
+  const orderableProducts = products.filter(isProductAvailable);
+  const urgentProduct = sortProducts(orderableProducts.filter(product => isDeadlineSoon(product.deadline, 72)), "deadline")[0];
+  return urgentProduct || sortProducts(orderableProducts, "popular")[0] || sortProducts(orderableProducts, "latest")[0] || null;
+}
+
+function renderHomeSpotlight(section, root, product) {
+  if (!section || !root) return;
+  section.hidden = !product;
+  root.innerHTML = product ? homeSpotlightCard(product) : "";
+}
+
+function homeSpotlightCard(product) {
+  const statusBadges = productStatusBadges(product);
+  const detailHref = `product.html?id=${encodeURIComponent(product.id)}`;
+  const metaText = [product.brand, product.spec].filter(Boolean).join(" · ") || "社區精選好物";
+  return `
+    <article class="spotlight-panel">
+      <a class="spotlight-media" href="${detailHref}">
+        <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+        <span class="spotlight-label">本週主打</span>
+      </a>
+      <div class="spotlight-body">
+        <p class="eyebrow">先看這一團</p>
+        <h2>${escapeHtml(product.name)}</h2>
+        <p class="muted">${escapeHtml(metaText)}</p>
+        <div class="pill-row">
+          <span class="pill">${escapeHtml(product.category || "其他")}</span>
+          ${statusBadges}
+        </div>
+        <div class="spotlight-stats">
+          <span>已售 <strong>${Number(product.soldCount || 0)}</strong></span>
+          <span>${productRemainingText(product)}</span>
+          ${product.deadline ? `<span>${deadlineCountdownText(product.deadline)}截止</span>` : ""}
+        </div>
+        <div class="spotlight-foot">
+          <strong class="price">${money(product.price)}</strong>
+          <a class="btn inline" href="${detailHref}">查看商品</a>
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function hotProductCard(product, index) {
@@ -903,6 +964,13 @@ async function initProductDetail() {
         </div>
       </div>
     </div>
+    <section class="related-section" id="relatedProductsSection" hidden>
+      <div class="section-head">
+        <h2>你可能也想買</h2>
+        <p>同分類與熱門商品</p>
+      </div>
+      <div class="grid product-grid featured-grid" id="relatedProductsList"></div>
+    </section>
   `;
 
   $("#openOrderModalBtn")?.addEventListener("click", () => $("#orderModal").classList.add("open"));
@@ -927,6 +995,7 @@ async function initProductDetail() {
     }
   });
   initProductGallery();
+  renderRelatedProducts(product);
   $("#orderForm").addEventListener("submit", async event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -974,6 +1043,39 @@ async function initProductDetail() {
       alert(error.message);
     }
   });
+}
+
+async function renderRelatedProducts(currentProduct) {
+  const section = $("#relatedProductsSection");
+  const listRoot = $("#relatedProductsList");
+  if (!section || !listRoot) return;
+
+  try {
+    const products = await publicProducts();
+    const relatedProducts = recommendedProducts(currentProduct, products, 4);
+    section.hidden = !relatedProducts.length;
+    listRoot.innerHTML = relatedProducts.map(productCard).join("");
+  } catch (error) {
+    console.warn("Related products unavailable", error);
+    section.hidden = true;
+  }
+}
+
+function recommendedProducts(currentProduct, products, count = 4) {
+  const category = currentProduct.category || "其他";
+  const candidates = products
+    .filter(product => product.id !== currentProduct.id)
+    .filter(isProductAvailable);
+  const sameCategory = sortProducts(candidates.filter(product => (product.category || "其他") === category), "popular");
+  const otherProducts = sortProducts(candidates.filter(product => (product.category || "其他") !== category), "popular");
+  const seen = new Set();
+  return [...sameCategory, ...otherProducts]
+    .filter(product => {
+      if (seen.has(product.id)) return false;
+      seen.add(product.id);
+      return true;
+    })
+    .slice(0, count);
 }
 
 async function findOrderById(orderId) {
