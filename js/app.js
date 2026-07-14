@@ -271,6 +271,21 @@ function productRemainingText(product) {
   return `剩餘 ${productRemainingCount(product)}`;
 }
 
+function productWishHref(product) {
+  const params = new URLSearchParams();
+  if (product.name) params.set("title", product.name);
+  const description = [product.brand, product.spec].filter(Boolean).join(" / ");
+  if (description) params.set("description", description);
+  const query = params.toString();
+  return query ? `wish.html?${query}` : "wish.html";
+}
+
+function shouldOfferProductWish(product, remaining = productRemainingCount(product)) {
+  const saleEnded = product.saleEnd && toDate(product.saleEnd) < new Date();
+  const soldOut = !isProductUnlimited(product) && Number(remaining || 0) <= 0;
+  return product.isActive !== false && (isProductDeadlinePassed(product) || saleEnded || soldOut);
+}
+
 function deadlineCountdownText(value) {
   const deadline = toDate(value);
   if (!deadline) return "";
@@ -447,6 +462,10 @@ function announcementCard(announcement) {
 
 function productCard(product) {
   const orderable = isProductOrderable(product);
+  const wishable = shouldOfferProductWish(product);
+  const actionHref = wishable ? productWishHref(product) : `product.html?id=${encodeURIComponent(product.id)}`;
+  const actionText = orderable ? "我想預訂" : (wishable ? "想再開團" : "查看詳情");
+  const actionClass = orderable || wishable ? "btn" : "btn secondary";
   return `
     <article class="card product-card">
       <a class="product-card-media" href="product.html?id=${encodeURIComponent(product.id)}">
@@ -465,7 +484,7 @@ function productCard(product) {
           <span>剩餘 <strong>${isProductUnlimited(product) ? "不限量" : productRemainingCount(product)}</strong></span>
           <span>截單 <strong>${compactDateText(product.deadline)}</strong></span>
         </div>
-        <a class="btn ${orderable ? "" : "secondary"}" href="product.html?id=${encodeURIComponent(product.id)}">${orderable ? "我想預訂" : "查看詳情"}</a>
+        <a class="${actionClass}" href="${escapeHtml(actionHref)}">${actionText}</a>
       </div>
     </article>
   `;
@@ -747,6 +766,7 @@ async function initProductDetail() {
   await loadProductImages(product);
   const remaining = Math.max(Number(product.stockLimit || 0) - Number(product.soldCount || 0), 0);
   const canOrder = isProductOrderable(product) && (isProductUnlimited(product) || remaining > 0);
+  const wishable = shouldOfferProductWish(product, remaining);
   root.innerHTML = `
     <div class="card">
       ${productGallery(product)}
@@ -777,7 +797,7 @@ async function initProductDetail() {
         ${product.pickupLocation ? `<div class="info-row"><span>取貨地點</span><strong>${escapeHtml(product.pickupLocation)}</strong></div>` : ""}
       </div>
       <div class="product-action-row">
-        <button class="btn" id="openOrderModalBtn" ${canOrder ? "" : "disabled"}>立即預購</button>
+        ${canOrder ? `<button class="btn" id="openOrderModalBtn">立即預購</button>` : (wishable ? `<a class="btn" href="${escapeHtml(productWishHref(product))}">想再開團</a>` : `<button class="btn" disabled>暫不可預訂</button>`)}
         <button class="btn secondary" id="shareProductBtn" type="button">分享商品</button>
       </div>
       <div class="modal" id="orderModal">
@@ -2151,6 +2171,18 @@ function wishDetail(wish) {
 
 async function initWishPool() {
   let showAllWishes = false;
+  const formRoot = $("#wishForm");
+  const requestedTitle = getParam("title");
+  const requestedDescription = getParam("description");
+
+  if (formRoot && requestedTitle) {
+    const titleInput = $("input[name='title']", formRoot);
+    const descriptionInput = $("textarea[name='description']", formRoot);
+    if (titleInput) titleInput.value = requestedTitle;
+    if (descriptionInput && requestedDescription) descriptionInput.value = requestedDescription;
+    $("#wishMessage").innerHTML = `<div class="notice">已帶入商品名稱，補上聯絡資訊就可以送出許願。</div>`;
+  }
+
   const render = async () => {
     const wishes = await allWishes({ activeOnly: true });
     const topWishes = wishes.slice(0, 5);
@@ -2168,7 +2200,7 @@ async function initWishPool() {
     await render();
   });
 
-  $("#wishForm").addEventListener("submit", async event => {
+  formRoot.addEventListener("submit", async event => {
     event.preventDefault();
     const wishForm = event.currentTarget;
     const submitButton = $("button[type='submit'], button", wishForm);
