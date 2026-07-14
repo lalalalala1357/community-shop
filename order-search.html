@@ -21,21 +21,28 @@
     </header>
     <main class="container">
       <h1>訂單查詢</h1>
-      <form class="form card card-body" id="searchForm">
+      <form class="form card card-body search-form" id="searchForm">
         <div class="field">
           <label>手機號碼</label>
           <input name="phone" inputmode="tel" placeholder="0912345678">
         </div>
         <div class="field">
-          <label>訂單編號（選填）</label>
+          <label>訂單編號</label>
           <input name="orderId" placeholder="O202606200001">
         </div>
-        <button class="btn">查詢訂單</button>
+        <button class="btn" type="submit">查詢訂單</button>
       </form>
       <div class="segmented" aria-label="訂單分類">
         <button class="orderTab active" type="button" data-tab="all">全部</button>
         <button class="orderTab" type="button" data-tab="active">進行中</button>
         <button class="orderTab" type="button" data-tab="history">歷史訂單</button>
+      </div>
+      <div class="sort-line">
+        <label for="orderSearchSort">排序</label>
+        <select id="orderSearchSort">
+          <option value="latest">最新</option>
+          <option value="oldest">最舊</option>
+        </select>
       </div>
       <section id="searchResults" class="grid" style="margin-top:16px"></section>
     </main>

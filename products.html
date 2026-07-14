@@ -24,6 +24,21 @@
         <h1>全部商品</h1>
         <p>慢慢挑，看到喜歡的先預訂</p>
       </div>
+      <div class="card card-body product-controls">
+        <div class="field">
+          <label>搜尋商品</label>
+          <input id="productSearch" type="search" placeholder="搜尋商品名稱、品牌、規格">
+        </div>
+        <div class="field">
+          <label>排序</label>
+          <select id="productSort">
+            <option value="latest">最新</option>
+            <option value="popular">熱門</option>
+            <option value="price-desc">價格高→低</option>
+            <option value="price-asc">價格低→高</option>
+          </select>
+        </div>
+      </div>
       <div class="category-filter" id="categoryFilter"></div>
       <div class="grid product-grid" id="productList"></div>
     </main>

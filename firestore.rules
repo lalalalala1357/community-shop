@@ -15,15 +15,25 @@ service cloud.firestore {
       allow create, update, delete: if signedIn();
     }
 
+    match /productImages/{productId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn();
+    }
+
+    match /productCategories/{categoryId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn();
+    }
+
     match /orders/{orderId} {
       allow create: if true;
+      allow read, update, delete: if signedIn();
+    }
 
-      // Lets customers open /order-detail.html?id=O... directly.
-      allow get: if true;
-
-      // Protect customer phone/name data from public collection listing.
-      // Admin pages require Firebase Authentication login.
-      allow list, update, delete: if signedIn();
+    match /publicOrders/{lookupId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if signedIn();
     }
 
     match /announcements/{announcementId} {

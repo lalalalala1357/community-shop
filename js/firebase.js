@@ -15,25 +15,20 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   query,
   where,
   orderBy,
   limit,
+  startAfter,
   serverTimestamp,
   runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
-import { firebaseConfig } from "./firebase-config.js";
+import { firebaseConfig } from "./firebase-config.js?v=2";
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 
 export {
   signInWithEmailAndPassword,
@@ -47,13 +42,12 @@ export {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   query,
   where,
   orderBy,
   limit,
+  startAfter,
   serverTimestamp,
-  runTransaction,
-  ref,
-  uploadBytes,
-  getDownloadURL
+  runTransaction
 };
