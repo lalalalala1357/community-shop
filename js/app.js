@@ -954,11 +954,32 @@ async function initProductDetail() {
           <button class="modal-close" id="closeOrderModal" type="button" aria-label="關閉">×</button>
           <h2>立即預購</h2>
           <form class="form" id="orderForm">
-        <div class="field"><label>姓名</label><input name="customerName" required autocomplete="name"></div>
-        <div class="field"><label>電話</label><input name="phone" required inputmode="tel" autocomplete="tel"></div>
-        <div class="field"><label>LINE ID（選填）</label><input name="lineId"></div>
-        <div class="field"><label>數量</label><input name="quantity" type="number" min="1" ${isProductUnlimited(product) ? "" : `max="${remaining}"`} value="1" required></div>
-        <div class="field"><label>備註</label><textarea name="note"></textarea></div>
+            <div class="order-product-preview">
+              <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
+              <div>
+                <p class="eyebrow">預訂商品</p>
+                <h3>${escapeHtml(product.name)}</h3>
+                <p class="meta">${escapeHtml(product.spec || "無規格")} · ${productRemainingText(product)}</p>
+                <strong class="price">${money(product.price)}</strong>
+              </div>
+            </div>
+            <div class="field"><label>姓名</label><input name="customerName" required autocomplete="name"></div>
+            <div class="field"><label>電話</label><input name="phone" required inputmode="tel" autocomplete="tel"></div>
+            <div class="field"><label>LINE ID（選填）</label><input name="lineId"></div>
+            <div class="field">
+              <label for="orderQuantity">數量</label>
+              <div class="quantity-control" data-quantity-control>
+                <button type="button" data-quantity-action="decrease" aria-label="減少數量">−</button>
+                <input id="orderQuantity" name="quantity" type="number" min="1" step="1" ${isProductUnlimited(product) ? "" : `max="${remaining}"`} value="1" required>
+                <button type="button" data-quantity-action="increase" aria-label="增加數量">+</button>
+              </div>
+              <p class="meta">${isProductUnlimited(product) ? "不限量供應" : `最多可預訂 ${remaining} 份`}</p>
+            </div>
+            <div class="order-estimate">
+              <span>預估總金額</span>
+              <strong id="orderEstimateTotal">${money(product.price)}</strong>
+            </div>
+            <div class="field"><label>備註</label><textarea name="note"></textarea></div>
             <button class="btn">送出預購</button>
           </form>
         </div>
@@ -996,6 +1017,7 @@ async function initProductDetail() {
   });
   initProductGallery();
   renderRelatedProducts(product);
+  initOrderQuantityControls({ unitPrice: Number(product.price || 0), maxQuantity: isProductUnlimited(product) ? Infinity : remaining });
   $("#orderForm").addEventListener("submit", async event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1043,6 +1065,35 @@ async function initProductDetail() {
       alert(error.message);
     }
   });
+}
+
+function initOrderQuantityControls({ unitPrice, maxQuantity = Infinity } = {}) {
+  const form = $("#orderForm");
+  const input = $("#orderQuantity", form);
+  const totalRoot = $("#orderEstimateTotal", form);
+  if (!form || !input || !totalRoot) return;
+
+  const max = Number.isFinite(maxQuantity) ? Math.max(Number(maxQuantity || 1), 1) : Infinity;
+  const clampQuantity = value => {
+    const quantity = Math.max(Math.floor(Number(value) || 1), 1);
+    return Number.isFinite(max) ? Math.min(quantity, max) : quantity;
+  };
+  const updateTotal = () => {
+    const quantity = clampQuantity(input.value);
+    input.value = String(quantity);
+    totalRoot.textContent = money(Number(unitPrice || 0) * quantity);
+  };
+
+  $$("[data-quantity-action]", form).forEach(button => {
+    button.addEventListener("click", () => {
+      const direction = button.dataset.quantityAction === "increase" ? 1 : -1;
+      input.value = String(clampQuantity(Number(input.value || 1) + direction));
+      updateTotal();
+    });
+  });
+  input.addEventListener("input", updateTotal);
+  input.addEventListener("blur", updateTotal);
+  updateTotal();
 }
 
 async function renderRelatedProducts(currentProduct) {
@@ -1209,6 +1260,33 @@ async function syncPublicOrder(order) {
   await deleteDoc(doc(db, "publicOrders", `${encodeURIComponent(order.orderId)}_${encodeURIComponent(order.phone)}`)).catch(() => {});
 }
 
+function orderTimeline(order, options = {}) {
+  const status = normalizeOrderStatus(order.status, order.pickupTime);
+  const finalLabel = status === "已取消" ? "已取消" : (status === "未取貨" ? "未取貨" : "已取貨");
+  const finalStatuses = ["已取貨", "未取貨", "已取消"];
+  const steps = [
+    { label: "已下單", active: true, current: status === "已下單" },
+    { label: "可取貨", active: ["可取貨", "已取貨", "未取貨"].includes(status), current: status === "可取貨" },
+    { label: finalLabel, active: finalStatuses.includes(status), current: finalStatuses.includes(status) }
+  ];
+  const classes = [
+    "order-timeline",
+    options.compact ? "compact" : "",
+    ["已取消", "未取貨"].includes(status) ? "order-timeline-alert" : ""
+  ].filter(Boolean).join(" ");
+
+  return `
+    <div class="${classes}" aria-label="訂單狀態流程">
+      ${steps.map(step => `
+        <div class="order-step ${step.active ? "active" : ""} ${step.current ? "current" : ""}">
+          <span aria-hidden="true"></span>
+          <strong>${step.label}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function orderSummary(order, options = {}) {
   const isAdmin = options.admin === true;
   return `
@@ -1222,6 +1300,7 @@ function orderSummary(order, options = {}) {
           ${statusBadge(order.status)}
         </div>
       ` : `<h2>${order.orderId}</h2>`}
+      ${isAdmin ? "" : orderTimeline(order)}
       <div class="info-list">
         <div class="info-row"><span>商品名稱</span><strong>${order.productName}</strong></div>
         <div class="info-row"><span>數量</span><strong>${order.quantity}</strong></div>
@@ -1467,6 +1546,7 @@ function customerOrderCard(order) {
         <p class="meta">訂單 ${escapeHtml(order.orderId || "-")} · ${Number(order.quantity || 0)} 份 · ${money(order.totalAmount)}</p>
         <p class="meta">下單 ${orderDateText(order)}</p>
         <p class="meta">取貨 ${dateText(order.pickupTime)} · ${escapeHtml(order.pickupLocation || "-")}</p>
+        ${orderTimeline(order, { compact: true })}
       </div>
       <a class="btn secondary inline" href="${detailHref}">查看詳細</a>
     </article>
