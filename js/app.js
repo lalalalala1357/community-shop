@@ -184,7 +184,7 @@ async function publicProducts({ activeOnly = false } = {}) {
 
 function recentEndedProducts(products, count = 6) {
   return products
-    .filter(product => product.isActive !== false && (isProductDeadlinePassed(product) || !isProductOnSale(product)))
+    .filter(product => shouldOfferProductWish(product))
     .sort((a, b) => {
       const aTime = toDate(a.deadline || a.saleEnd || a.updatedAt || a.createdAt)?.getTime() || 0;
       const bTime = toDate(b.deadline || b.saleEnd || b.updatedAt || b.createdAt)?.getTime() || 0;
@@ -288,9 +288,19 @@ function productWishHref(product) {
 }
 
 function shouldOfferProductWish(product, remaining = productRemainingCount(product)) {
-  const saleEnded = product.saleEnd && toDate(product.saleEnd) < new Date();
+  const saleEnded = isProductSaleEnded(product);
   const soldOut = !isProductUnlimited(product) && Number(remaining || 0) <= 0;
   return product.isActive !== false && (isProductDeadlinePassed(product) || saleEnded || soldOut);
+}
+
+function isProductSaleEnded(product) {
+  const saleEnd = toDate(product.saleEnd);
+  return Boolean(saleEnd && saleEnd < new Date());
+}
+
+function isProductUpcoming(product) {
+  const saleStart = toDate(product.saleStart);
+  return Boolean(saleStart && saleStart > new Date());
 }
 
 async function findWishSourceProduct(productId, title) {
@@ -329,6 +339,35 @@ function productDeadlineBadge(product) {
   if (!label || label === "已截止") return "";
   const urgent = isDeadlineSoon(product.deadline, 24);
   return `<span class="status ${urgent ? "status-red" : "status-orange"}">${label}</span>`;
+}
+
+function productStatusBadge(label, color) {
+  return `<span class="status status-${color}">${label}</span>`;
+}
+
+function productStatusBadges(product) {
+  const badges = [];
+  const remaining = productRemainingCount(product);
+  const soldOut = !isProductUnlimited(product) && Number(remaining || 0) <= 0;
+  const ended = isProductDeadlinePassed(product) || isProductSaleEnded(product);
+
+  if (product.isActive === false) {
+    badges.push(productStatusBadge("暫停販售", "gray"));
+  } else if (isProductUpcoming(product)) {
+    badges.push(productStatusBadge("即將開賣", "blue"));
+  } else if (shouldOfferProductWish(product, remaining)) {
+    if (soldOut) badges.push(productStatusBadge("售完", "red"));
+    if (ended) badges.push(productStatusBadge("已截止", "gray"));
+    badges.push(productStatusBadge("再開團募集中", "orange"));
+  } else if (isDeadlineSoon(product.deadline, 24)) {
+    badges.push(productStatusBadge("即將截止", "red"));
+  } else if (isProductOrderable(product)) {
+    badges.push(productStatusBadge("開團中", "green"));
+  }
+
+  const countdownBadge = productDeadlineBadge(product);
+  if (countdownBadge && !soldOut && !ended && product.isActive !== false && !isProductUpcoming(product)) badges.push(countdownBadge);
+  return badges.join("");
 }
 
 function sortProducts(products, sort = "latest") {
@@ -484,11 +523,12 @@ function productCard(product) {
   const actionHref = wishable ? productWishHref(product) : `product.html?id=${encodeURIComponent(product.id)}`;
   const actionText = orderable ? "我想預訂" : (wishable ? "想再開團" : "查看詳情");
   const actionClass = orderable || wishable ? "btn" : "btn secondary";
+  const statusBadges = productStatusBadges(product);
   return `
     <article class="card product-card">
       <a class="product-card-media" href="product.html?id=${encodeURIComponent(product.id)}">
         <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
-        ${productDeadlineBadge(product) ? `<div class="product-card-badge">${productDeadlineBadge(product)}</div>` : ""}
+        ${statusBadges ? `<div class="product-card-badge">${statusBadges}</div>` : ""}
       </a>
       <div class="product-card-body">
         <div class="product-card-top">
@@ -585,12 +625,13 @@ function hotProductCard(product, index) {
 }
 
 function endingProductCard(product) {
+  const statusBadges = productStatusBadges(product);
   return `
     <article class="card ending-card">
       <img src="${productMainImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">
       <div>
         <div class="pill-row">
-          ${productDeadlineBadge(product)}
+          ${statusBadges}
           <span class="pill">${escapeHtml(product.category || "其他")}</span>
         </div>
         <h3>${escapeHtml(product.name)}</h3>
@@ -793,6 +834,7 @@ async function initProductDetail() {
   const remaining = Math.max(Number(product.stockLimit || 0) - Number(product.soldCount || 0), 0);
   const canOrder = isProductOrderable(product) && (isProductUnlimited(product) || remaining > 0);
   const wishable = shouldOfferProductWish(product, remaining);
+  const statusBadges = productStatusBadges(product);
   root.innerHTML = `
     <div class="card">
       ${productGallery(product)}
@@ -800,7 +842,7 @@ async function initProductDetail() {
     <div class="card card-body">
       <div class="pill-row">
         <span class="pill">${escapeHtml(product.category || "其他")}</span>
-        ${productDeadlineBadge(product)}
+        ${statusBadges}
       </div>
       <div class="product-title-row">
         <h1>${escapeHtml(product.name)}</h1>

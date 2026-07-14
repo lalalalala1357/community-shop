@@ -350,6 +350,16 @@ section + section {
   position: absolute;
   top: 8px;
   left: 8px;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+}
+
+.product-card-badge .status {
+  box-shadow: 0 8px 18px rgba(58, 34, 18, 0.12);
 }
 
 .wish-card .section-head {
@@ -856,7 +866,7 @@ section + section {
   color: var(--primary);
 }
 
-.status-blue { background: #ffedd5; color: #c2410c; }
+.status-blue { background: #dbeafe; color: #1d4ed8; }
 .status-green { background: #d1fae5; color: #047857; }
 .status-gray { background: #e5e7eb; color: #4b5563; }
 .status-red { background: #fee2e2; color: #b91c1c; }
@@ -1667,6 +1677,34 @@ tbody tr:hover {
 
   .product-action-row {
     grid-template-columns: 1fr;
+  }
+
+  body[data-page="product"] {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+
+  body[data-page="product"] main {
+    padding-bottom: 172px;
+  }
+
+  body[data-page="product"] .product-action-row {
+    position: fixed;
+    right: 0;
+    bottom: calc(58px + env(safe-area-inset-bottom));
+    left: 0;
+    z-index: 35;
+    grid-template-columns: minmax(0, 1.35fr) minmax(96px, 0.65fr);
+    gap: 8px;
+    margin: 0;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -10px 24px rgba(154, 88, 32, 0.12);
+    backdrop-filter: blur(12px);
+  }
+
+  body[data-page="product"] .product-action-row .btn {
+    min-height: 46px;
   }
 
   .success-panel {
