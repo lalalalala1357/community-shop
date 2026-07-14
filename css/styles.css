@@ -367,6 +367,30 @@ section + section {
   margin-top: 4px;
 }
 
+.wish-source-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fffaf3;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wish-source-preview[hidden] {
+  display: none;
+}
+
+.wish-source-preview img {
+  width: 58px;
+  height: 58px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
 .admin-reply {
   display: grid;
   gap: 4px;

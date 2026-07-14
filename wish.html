@@ -28,6 +28,8 @@
           <div class="field"><label>商品名稱</label><input name="title" required placeholder="例如：鮮乳、衛生紙、冷凍水餃"></div>
           <div class="field"><label>商品說明</label><textarea name="description" placeholder="品牌、規格、預算都可以寫"></textarea></div>
           <div class="field"><label>商品照片（選填）</label><input name="image" type="file" accept="image/*"></div>
+          <input name="sourceImageUrl" type="hidden">
+          <div class="wish-source-preview" id="wishSourceImagePreview" hidden></div>
           <div class="field"><label>許願人姓名</label><input name="customerName" required autocomplete="name"></div>
           <div class="field"><label>手機</label><input name="phone" required inputmode="tel" autocomplete="tel"></div>
           <button class="btn">送出許願</button>

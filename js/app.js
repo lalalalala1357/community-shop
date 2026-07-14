@@ -273,6 +273,7 @@ function productRemainingText(product) {
 
 function productWishHref(product) {
   const params = new URLSearchParams();
+  if (product.id) params.set("productId", product.id);
   if (product.name) params.set("title", product.name);
   const description = [product.brand, product.spec].filter(Boolean).join(" / ");
   if (description) params.set("description", description);
@@ -2172,15 +2173,50 @@ function wishDetail(wish) {
 async function initWishPool() {
   let showAllWishes = false;
   const formRoot = $("#wishForm");
+  const requestedProductId = getParam("productId");
   const requestedTitle = getParam("title");
   const requestedDescription = getParam("description");
+  const prefillMessages = [];
 
   if (formRoot && requestedTitle) {
     const titleInput = $("input[name='title']", formRoot);
     const descriptionInput = $("textarea[name='description']", formRoot);
     if (titleInput) titleInput.value = requestedTitle;
     if (descriptionInput && requestedDescription) descriptionInput.value = requestedDescription;
-    $("#wishMessage").innerHTML = `<div class="notice">已帶入商品名稱，補上聯絡資訊就可以送出許願。</div>`;
+    prefillMessages.push("商品名稱");
+  }
+
+  if (formRoot && requestedProductId) {
+    try {
+      const productSnap = await getDoc(doc(db, "products", requestedProductId));
+      if (productSnap.exists()) {
+        const sourceProduct = normalizeProduct(productSnap.id, productSnap.data());
+        await loadProductImages(sourceProduct);
+        const titleInput = $("input[name='title']", formRoot);
+        const descriptionInput = $("textarea[name='description']", formRoot);
+        const sourceImageInput = $("input[name='sourceImageUrl']", formRoot);
+        const sourceImagePreview = $("#wishSourceImagePreview");
+        const sourceImageUrl = sourceProduct.imageUrls?.[0] || sourceProduct.imageUrl || "";
+        const sourceDescription = [sourceProduct.brand, sourceProduct.spec].filter(Boolean).join(" / ");
+        if (titleInput && !titleInput.value) titleInput.value = sourceProduct.name || "";
+        if (descriptionInput && !descriptionInput.value && sourceDescription) descriptionInput.value = sourceDescription;
+        if (sourceImageUrl && sourceImageInput && sourceImagePreview) {
+          sourceImageInput.value = sourceImageUrl;
+          sourceImagePreview.hidden = false;
+          sourceImagePreview.innerHTML = `
+            <img src="${escapeHtml(sourceImageUrl)}" alt="${escapeHtml(sourceProduct.name || "原商品圖片")}">
+            <span>已帶入原商品圖片，若上傳新照片會改用新照片。</span>
+          `;
+          prefillMessages.push("商品圖片");
+        }
+      }
+    } catch (error) {
+      console.warn("Unable to prefill wish source product", error);
+    }
+  }
+
+  if (prefillMessages.length) {
+    $("#wishMessage").innerHTML = `<div class="notice">已帶入${prefillMessages.join("與")}，補上聯絡資訊就可以送出許願。</div>`;
   }
 
   const render = async () => {
@@ -2209,7 +2245,8 @@ async function initWishPool() {
     try {
       const form = new FormData(wishForm);
       const phone = form.get("phone").trim();
-      const imageUrl = await uploadProductImage(form.get("image"));
+      const uploadedImageUrl = await uploadProductImage(form.get("image"));
+      const imageUrl = uploadedImageUrl || form.get("sourceImageUrl") || "";
       const id = doc(collection(db, "wishes")).id;
       await setDoc(doc(db, "wishes", id), {
         id,
