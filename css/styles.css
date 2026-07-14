@@ -1178,6 +1178,19 @@ tbody tr:hover {
   margin-top: 0;
 }
 
+.storefront-empty,
+.product-history-head {
+  grid-column: 1 / -1;
+}
+
+.storefront-empty h2 {
+  margin-top: 0;
+}
+
+.storefront-empty .pill-row {
+  margin-top: 14px;
+}
+
 .announcement-ticker {
   border-bottom: 1px solid var(--border);
   background: #fff7ed;

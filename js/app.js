@@ -170,12 +170,27 @@ function isPastPickupDate(pickupTime) {
 }
 
 async function activeProducts() {
-  const snap = await getDocs(query(collection(db, "products"), where("isActive", "==", true)));
-  const products = snap.docs
+  return publicProducts({ activeOnly: true });
+}
+
+async function publicProducts({ activeOnly = false } = {}) {
+  const snap = await getDocs(collection(db, "products"));
+  return snap.docs
     .map(item => normalizeProduct(item.id, item.data()))
-    .filter(product => isProductOnSale(product) && !isProductDeadlinePassed(product))
+    .filter(product => product.isActive !== false)
+    .filter(product => !activeOnly || (isProductOnSale(product) && !isProductDeadlinePassed(product)))
     .sort((a, b) => (toDate(a.deadline)?.getTime() || Infinity) - (toDate(b.deadline)?.getTime() || Infinity));
-  return products;
+}
+
+function recentEndedProducts(products, count = 6) {
+  return products
+    .filter(product => product.isActive !== false && (isProductDeadlinePassed(product) || !isProductOnSale(product)))
+    .sort((a, b) => {
+      const aTime = toDate(a.deadline || a.saleEnd || a.updatedAt || a.createdAt)?.getTime() || 0;
+      const bTime = toDate(b.deadline || b.saleEnd || b.updatedAt || b.createdAt)?.getTime() || 0;
+      return bTime - aTime;
+    })
+    .slice(0, count);
 }
 
 async function activeProductsPage({ category = "全部", cursor = null, pageSize = 10 } = {}) {
@@ -431,6 +446,7 @@ function announcementCard(announcement) {
 }
 
 function productCard(product) {
+  const orderable = isProductOrderable(product);
   return `
     <article class="card product-card">
       <a class="product-card-media" href="product.html?id=${encodeURIComponent(product.id)}">
@@ -449,9 +465,31 @@ function productCard(product) {
           <span>剩餘 <strong>${isProductUnlimited(product) ? "不限量" : productRemainingCount(product)}</strong></span>
           <span>截單 <strong>${compactDateText(product.deadline)}</strong></span>
         </div>
-        <a class="btn" href="product.html?id=${encodeURIComponent(product.id)}">我想預訂</a>
+        <a class="btn ${orderable ? "" : "secondary"}" href="product.html?id=${encodeURIComponent(product.id)}">${orderable ? "我想預訂" : "查看詳情"}</a>
       </div>
     </article>
+  `;
+}
+
+function storefrontEmptyState({ recentProducts = [], keyword = "", category = "全部" } = {}) {
+  const hasFilter = Boolean(keyword) || category !== "全部";
+  return `
+    <div class="card card-body storefront-empty">
+      <p class="eyebrow">${hasFilter ? "找不到符合條件" : "目前沒有開團商品"}</p>
+      <h2>${hasFilter ? "換個關鍵字或分類看看" : "新一波好物準備中"}</h2>
+      <p class="muted">${hasFilter ? "可以清除搜尋條件，或先看看最近截止的商品。" : "商品可能已超過截單時間。可以先到許願池告訴我們想買什麼。"}</p>
+      <div class="pill-row">
+        <a class="btn inline" href="wish.html">去許願池 +1</a>
+        <a class="btn secondary inline" href="order-search.html">查詢訂單</a>
+      </div>
+    </div>
+    ${recentProducts.length ? `
+      <div class="section-head product-history-head">
+        <h2>最近截止商品</h2>
+        <p>可查看詳情，重新開團後即可預訂</p>
+      </div>
+      ${recentProducts.map(productCard).join("")}
+    ` : ""}
   `;
 }
 
@@ -464,24 +502,25 @@ async function initHome() {
   [hotProductList, latestProductList, endingProductList].forEach(root => {
     if (root) root.innerHTML = `<div class="empty card">商品讀取中...</div>`;
   });
-  const [announcements, products] = await Promise.all([activeAnnouncements(), activeProducts()]);
+  const [announcements, products, allProducts] = await Promise.all([activeAnnouncements(), activeProducts(), publicProducts()]);
   announcementList.innerHTML = announcements.length ? announcements.map(announcementCard).join("") : `<article class="announcement-item"><span>目前沒有新的公告</span></article>`;
-  renderHomeProductSections({ hotProductList, latestProductList, endingProductList }, products);
+  renderHomeProductSections({ hotProductList, latestProductList, endingProductList }, products, allProducts);
   let renderedLimit = featuredProductLimit();
   window.addEventListener("resize", debounce(() => {
     const nextLimit = featuredProductLimit();
     if (nextLimit === renderedLimit) return;
     renderedLimit = nextLimit;
-    renderHomeProductSections({ hotProductList, latestProductList, endingProductList }, products);
+    renderHomeProductSections({ hotProductList, latestProductList, endingProductList }, products, allProducts);
   }));
 }
 
-function renderHomeProductSections(roots, products) {
+function renderHomeProductSections(roots, products, allProducts = products) {
   const hotProducts = sortProducts(products, "popular").slice(0, 3);
   const latestProducts = sortProducts(products, "latest").slice(0, featuredProductLimit());
   const endingProducts = sortProducts(products, "deadline").slice(0, 4);
-  if (roots.hotProductList) roots.hotProductList.innerHTML = hotProducts.map(hotProductCard).join("") || `<div class="empty card">目前沒有熱門商品</div>`;
-  if (roots.latestProductList) roots.latestProductList.innerHTML = latestProducts.map(productCard).join("") || `<div class="empty card">目前沒有新上架商品</div>`;
+  const recentProducts = recentEndedProducts(allProducts, 4);
+  if (roots.hotProductList) roots.hotProductList.innerHTML = hotProducts.map(hotProductCard).join("") || `<div class="empty card">目前沒有熱門商品，等下一波開團。</div>`;
+  if (roots.latestProductList) roots.latestProductList.innerHTML = latestProducts.map(productCard).join("") || storefrontEmptyState({ recentProducts });
   if (roots.endingProductList) roots.endingProductList.innerHTML = endingProducts.map(endingProductCard).join("") || `<div class="empty card">目前沒有即將截止商品</div>`;
 }
 
@@ -533,9 +572,10 @@ async function initPublicProducts() {
   const searchInput = $("#productSearch");
   const sortSelect = $("#productSort");
   productList.innerHTML = `<div class="empty card">商品讀取中...</div>`;
-  let products = await activeProducts();
+  const allProducts = await publicProducts();
+  let products = allProducts.filter(product => isProductOnSale(product) && !isProductDeadlinePassed(product));
   let categories = await publicProductCategories();
-  const productDerivedCategories = [...new Set(products.map(product => product.category || "其他"))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  const productDerivedCategories = [...new Set(allProducts.map(product => product.category || "其他"))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   categories = [...new Set([...categories, ...productDerivedCategories])];
   let selectedCategory = "全部";
   let currentPage = 1;
@@ -552,6 +592,7 @@ async function initPublicProducts() {
   };
 
   const render = () => {
+    const keyword = searchInput.value.trim().toLowerCase();
     const list = filteredProducts();
     const totalPages = Math.max(Math.ceil(list.length / pageSize), 1);
     currentPage = Math.min(currentPage, totalPages);
@@ -564,7 +605,15 @@ async function initPublicProducts() {
             <button class="btn secondary inline" type="button" data-page-next ${currentPage === totalPages ? "disabled" : ""}>下一頁</button>
           </div>
         ` : ""}`
-      : `<div class="empty card">找不到符合條件的商品</div>`;
+      : storefrontEmptyState({
+          recentProducts: recentEndedProducts(allProducts.filter(product => {
+            const matchesCategory = selectedCategory === "全部" || (product.category || "其他") === selectedCategory;
+            const matchesKeyword = !keyword || productSearchText(product).includes(keyword);
+            return matchesCategory && matchesKeyword;
+          })),
+          keyword,
+          category: selectedCategory
+        });
     $("[data-page-prev]", productList)?.addEventListener("click", () => {
       currentPage -= 1;
       render();
