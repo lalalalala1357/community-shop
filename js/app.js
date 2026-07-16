@@ -151,6 +151,37 @@ function shareImageUrl(src) {
   return /^https?:\/\//.test(src || "") ? src : defaultShareImageUrl;
 }
 
+function lineShareUrl(url, text) {
+  return `https://line.me/R/msg/text/?${encodeURIComponent(`${text}\n${url}`)}`;
+}
+
+const orderCustomerStorageKey = "communityShopOrderCustomer";
+
+function savedOrderCustomer() {
+  try {
+    const value = JSON.parse(localStorage.getItem(orderCustomerStorageKey) || "{}");
+    return {
+      customerName: String(value.customerName || ""),
+      phone: String(value.phone || ""),
+      lineId: String(value.lineId || "")
+    };
+  } catch (error) {
+    return { customerName: "", phone: "", lineId: "" };
+  }
+}
+
+function saveOrderCustomer(customer) {
+  try {
+    localStorage.setItem(orderCustomerStorageKey, JSON.stringify({
+      customerName: customer.customerName || "",
+      phone: customer.phone || "",
+      lineId: customer.lineId || ""
+    }));
+  } catch (error) {
+    console.warn("Unable to remember order customer", error);
+  }
+}
+
 function statusBadge(status) {
   const normalizedStatus = normalizeOrderStatus(status);
   return `<span class="status status-${statusMap[normalizedStatus] || "blue"}">${normalizedStatus}</span>`;
@@ -162,11 +193,11 @@ function placeholderImage(name = "社區團購") {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function optimizedImage(src, alt, { className = "", eager = false, fallbackName = alt } = {}) {
+function optimizedImage(src, alt, { className = "", eager = false, fallbackName = alt, attrs = "" } = {}) {
   const fallback = placeholderImage(fallbackName || alt);
   const resolvedSrc = src || fallback;
   const classes = ["optimized-image", className].filter(Boolean).join(" ");
-  return `<img class="${escapeHtml(classes)}" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(alt || "")}"${eager ? " fetchpriority=\"high\"" : " loading=\"lazy\""} decoding="async" data-fallback-src="${escapeHtml(fallback)}">`;
+  return `<img class="${escapeHtml(classes)}" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(alt || "")}"${eager ? " fetchpriority=\"high\"" : " loading=\"lazy\""} decoding="async" data-fallback-src="${escapeHtml(fallback)}"${attrs ? ` ${attrs}` : ""}>`;
 }
 
 function handleOptimizedImageLoad(event) {
@@ -627,7 +658,12 @@ function productGallery(product) {
     <div class="product-gallery" data-gallery>
       <div class="product-slider" data-slider>
         ${images.map((url, index) => `
-          ${optimizedImage(url, `${product.name} ${index + 1}`, { className: "product-image", eager: index === 0, fallbackName: product.name })}
+          ${optimizedImage(url, `${product.name} ${index + 1}`, {
+            className: "product-image",
+            eager: index === 0,
+            fallbackName: product.name,
+            attrs: `data-lightbox-index="${index}" data-lightbox-src="${escapeHtml(url || placeholderImage(product.name))}" role="button" tabindex="0" aria-label="放大查看第 ${index + 1} 張商品圖片"`
+          })}
         `).join("")}
       </div>
       ${images.length > 1 ? `
@@ -641,6 +677,23 @@ function productGallery(product) {
   `;
 }
 
+function productImageLightbox() {
+  return `
+    <div class="modal image-lightbox-modal" id="imageLightboxModal" aria-hidden="true">
+      <div class="image-lightbox-panel" role="dialog" aria-modal="true" aria-label="商品圖片放大檢視">
+        <button class="modal-close image-lightbox-close" id="closeImageLightbox" type="button" aria-label="關閉">×</button>
+        <button class="gallery-arrow image-lightbox-prev" type="button" data-lightbox-prev aria-label="上一張">‹</button>
+        <img class="image-lightbox-img" id="imageLightboxImg" alt="">
+        <button class="gallery-arrow image-lightbox-next" type="button" data-lightbox-next aria-label="下一張">›</button>
+        <div class="image-lightbox-foot">
+          <span id="imageLightboxCounter"></span>
+          <span>點擊空白處關閉</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function initProductGallery() {
   const gallery = $("[data-gallery]");
   const slider = $("[data-slider]", gallery);
@@ -648,6 +701,71 @@ function initProductGallery() {
 
   const thumbs = $$("[data-gallery-index]", gallery);
   const images = $$(".product-image", slider);
+  const lightbox = $("#imageLightboxModal");
+  const lightboxImage = $("#imageLightboxImg");
+  const lightboxCounter = $("#imageLightboxCounter");
+  const lightboxPrev = $("[data-lightbox-prev]", lightbox);
+  const lightboxNext = $("[data-lightbox-next]", lightbox);
+  let lightboxIndex = 0;
+
+  const renderLightbox = () => {
+    const image = images[lightboxIndex];
+    if (!image || !lightboxImage) return;
+    lightboxImage.src = image.dataset.lightboxSrc || image.currentSrc || image.src;
+    lightboxImage.alt = image.alt || "商品圖片";
+    if (lightboxCounter) lightboxCounter.textContent = `${lightboxIndex + 1} / ${images.length}`;
+    [lightboxPrev, lightboxNext].forEach(button => {
+      if (button) button.hidden = images.length <= 1;
+    });
+  };
+
+  const openLightbox = index => {
+    if (!lightbox || !lightboxImage) return;
+    lightboxIndex = Math.max(0, Math.min(Number(index) || 0, images.length - 1));
+    renderLightbox();
+    lightbox.classList.add("open");
+    lightbox.setAttribute("aria-hidden", "false");
+  };
+
+  const closeLightbox = () => {
+    lightbox?.classList.remove("open");
+    lightbox?.setAttribute("aria-hidden", "true");
+  };
+
+  images.forEach((image, index) => {
+    image.addEventListener("click", () => openLightbox(index));
+    image.addEventListener("keydown", event => {
+      if (!["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      openLightbox(index);
+    });
+  });
+
+  $("#closeImageLightbox")?.addEventListener("click", closeLightbox);
+  lightbox?.addEventListener("click", event => {
+    if (event.target === lightbox) closeLightbox();
+  });
+  lightboxPrev?.addEventListener("click", () => {
+    lightboxIndex = (lightboxIndex + images.length - 1) % images.length;
+    renderLightbox();
+  });
+  lightboxNext?.addEventListener("click", () => {
+    lightboxIndex = (lightboxIndex + 1) % images.length;
+    renderLightbox();
+  });
+  document.addEventListener("keydown", event => {
+    if (!lightbox?.classList.contains("open")) return;
+    if (event.key === "Escape") closeLightbox();
+    if (event.key === "ArrowLeft" && images.length > 1) {
+      lightboxIndex = (lightboxIndex + images.length - 1) % images.length;
+      renderLightbox();
+    }
+    if (event.key === "ArrowRight" && images.length > 1) {
+      lightboxIndex = (lightboxIndex + 1) % images.length;
+      renderLightbox();
+    }
+  });
+
   if (images.length <= 1) return;
 
   const goTo = index => {
@@ -1140,6 +1258,9 @@ async function initProductDetail() {
     [product.brand, product.spec].filter(Boolean).join(" · "),
     product.deadline ? `${deadlineCountdownText(product.deadline)}截止` : ""
   ].filter(Boolean).join("｜");
+  const shareText = `${product.name} ${money(product.price)}`;
+  const rememberedCustomer = savedOrderCustomer();
+  const hasRememberedCustomer = Boolean(rememberedCustomer.customerName || rememberedCustomer.phone || rememberedCustomer.lineId);
   setPageShareMeta({
     title: `${product.name}｜社區小舖`,
     description: shareDescription,
@@ -1186,9 +1307,10 @@ async function initProductDetail() {
           <strong>${money(product.price)}</strong>
           <span>${productRemainingText(product)}${product.deadline ? ` · ${deadlineCountdownText(product.deadline)}` : ""}</span>
         </div>
-        <div class="product-action-buttons">
-          ${canOrder ? `<button class="btn" id="openOrderModalBtn">立即預購</button>` : (wishable ? `<a class="btn" href="${escapeHtml(productWishHref(product))}">想再開團</a>` : `<button class="btn" disabled>暫不可預訂</button>`)}
+        <div class="product-action-buttons product-action-buttons-share">
+          ${canOrder ? `<button class="btn product-primary-action" id="openOrderModalBtn">立即預購</button>` : (wishable ? `<a class="btn product-primary-action" href="${escapeHtml(productWishHref(product))}">想再開團</a>` : `<button class="btn product-primary-action" disabled>暫不可預訂</button>`)}
           <button class="btn secondary" id="shareProductBtn" type="button">分享商品</button>
+          <a class="btn secondary line-share-btn" id="lineShareProductBtn" href="${escapeHtml(lineShareUrl(shareUrl, shareText))}" target="_blank" rel="noopener noreferrer">LINE 分享</a>
         </div>
       </div>
       <div class="modal" id="orderModal">
@@ -1205,9 +1327,10 @@ async function initProductDetail() {
                 <strong class="price">${money(product.price)}</strong>
               </div>
             </div>
-            <div class="field"><label>姓名</label><input name="customerName" required autocomplete="name"></div>
-            <div class="field"><label>電話</label><input name="phone" required inputmode="tel" autocomplete="tel"></div>
-            <div class="field"><label>LINE ID（選填）</label><input name="lineId"></div>
+            ${hasRememberedCustomer ? `<p class="notice compact-notice">已自動帶入上次下單資料，可直接修改。</p>` : ""}
+            <div class="field"><label>姓名</label><input name="customerName" value="${escapeHtml(rememberedCustomer.customerName)}" required autocomplete="name"></div>
+            <div class="field"><label>電話</label><input name="phone" value="${escapeHtml(rememberedCustomer.phone)}" required inputmode="tel" autocomplete="tel"></div>
+            <div class="field"><label>LINE ID（選填）</label><input name="lineId" value="${escapeHtml(rememberedCustomer.lineId)}"></div>
             <div class="field">
               <label for="orderQuantity">數量</label>
               <div class="quantity-control" data-quantity-control>
@@ -1227,6 +1350,7 @@ async function initProductDetail() {
         </div>
       </div>
     </div>
+    ${productImageLightbox()}
     <section class="related-section" id="relatedProductsSection" hidden>
       <div class="section-head">
         <h2 id="relatedProductsTitle">同分類推薦</h2>
@@ -1242,7 +1366,7 @@ async function initProductDetail() {
     const button = event.currentTarget;
     const shareData = {
       title: product.name,
-      text: `${product.name} ${money(product.price)}`,
+      text: shareText,
       url: shareUrl
     };
     try {
@@ -1266,6 +1390,8 @@ async function initProductDetail() {
     const quantity = Number(form.get("quantity"));
     const orderId = await nextOrderId();
     const phone = form.get("phone").trim();
+    const customerName = form.get("customerName").trim();
+    const lineId = form.get("lineId").trim();
     const hashedPhone = await phoneHash(phone);
 
     try {
@@ -1287,10 +1413,10 @@ async function initProductDetail() {
           price: Number(fresh.price || 0),
           quantity,
           totalAmount: Number(fresh.price || 0) * quantity,
-          customerName: form.get("customerName").trim(),
+          customerName,
           phone,
           customerId: phone,
-          lineId: form.get("lineId").trim(),
+          lineId,
           note: form.get("note").trim(),
           status: "已下單",
           pickupTime: fresh.pickupTime,
@@ -1302,6 +1428,7 @@ async function initProductDetail() {
         transaction.set(publicOrderRef, publicOrderPayload(orderData, hashedPhone));
         transaction.update(productRef, { soldCount: Number(fresh.soldCount || 0) + quantity, updatedAt: serverTimestamp() });
       });
+      saveOrderCustomer({ customerName, phone, lineId });
       location.href = `order-success.html?id=${orderId}`;
     } catch (error) {
       alert(error.message);

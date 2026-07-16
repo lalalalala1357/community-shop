@@ -700,7 +700,13 @@ section + section {
 }
 
 .product-slider .product-image {
+  cursor: zoom-in;
   scroll-snap-align: start;
+}
+
+.product-slider .product-image:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: -3px;
 }
 
 .product-thumbs {
@@ -1306,6 +1312,15 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(140px, 0.6fr);
   gap: 10px;
+}
+
+.product-action-buttons-share {
+  grid-template-columns: minmax(0, 1.35fr) minmax(120px, 0.65fr) minmax(120px, 0.65fr);
+}
+
+.compact-notice {
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .mobile-action-summary {
@@ -1999,6 +2014,61 @@ tbody tr:hover {
   transform: rotate(4deg);
 }
 
+.image-lightbox-modal {
+  z-index: 70;
+  align-items: center;
+  background: rgba(24, 18, 13, 0.84);
+}
+
+.image-lightbox-panel {
+  position: relative;
+  display: grid;
+  width: min(100%, 980px);
+  max-height: calc(100vh - 32px);
+  gap: 12px;
+  margin: 0 auto;
+  color: #fff;
+}
+
+.image-lightbox-img {
+  width: 100%;
+  max-height: calc(100vh - 118px);
+  border-radius: var(--radius);
+  background: #1f160f;
+  object-fit: contain;
+}
+
+.image-lightbox-close {
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.image-lightbox-prev,
+.image-lightbox-next {
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+}
+
+.image-lightbox-prev {
+  left: 10px;
+}
+
+.image-lightbox-next {
+  right: 10px;
+}
+
+.image-lightbox-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .readonly-note {
   min-height: 44px;
   padding: 10px 12px;
@@ -2348,6 +2418,14 @@ tbody tr:hover {
   body[data-page="product"] .product-action-buttons {
     grid-template-columns: minmax(0, 1.35fr) minmax(96px, 0.65fr);
     gap: 8px;
+  }
+
+  body[data-page="product"] .product-action-buttons-share {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="product"] .product-action-buttons-share .product-primary-action {
+    grid-column: 1 / -1;
   }
 
   body[data-page="product"] .product-action-row .btn {
