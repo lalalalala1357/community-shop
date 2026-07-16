@@ -894,14 +894,21 @@ function announcementTicker(announcements) {
 }
 
 function productCard(product) {
-  const orderable = isProductOrderable(product);
+  const available = isProductAvailable(product);
   const wishable = shouldOfferProductWish(product);
   const actionHref = wishable ? productWishHref(product) : `product.html?id=${encodeURIComponent(product.id)}`;
-  const actionText = wishable ? "想再開團" : (orderable ? "我想預訂" : "查看詳情");
-  const actionClass = orderable || wishable ? "btn" : "btn secondary";
+  const actionText = wishable ? "去 +1 再開團" : (available ? "我想預訂" : "查看詳情");
+  const actionClass = available || wishable ? "btn" : "btn secondary";
   const statusBadges = productStatusBadges(product);
+  const stateText = productCardStateText(product);
+  const cardClasses = [
+    "card",
+    "product-card",
+    !available ? "product-card-unavailable" : "",
+    wishable ? "product-card-reopen" : ""
+  ].filter(Boolean).join(" ");
   return `
-    <article class="card product-card">
+    <article class="${cardClasses}">
       <a class="product-card-media" href="product.html?id=${encodeURIComponent(product.id)}">
         ${optimizedImage(productMainImage(product), product.name)}
         ${statusBadges ? `<div class="product-card-badge">${statusBadges}</div>` : ""}
@@ -918,10 +925,21 @@ function productCard(product) {
           <span>剩餘 <strong>${isProductUnlimited(product) ? "不限量" : productRemainingCount(product)}</strong></span>
           <span>截單 <strong>${compactDateText(product.deadline)}</strong></span>
         </div>
+        ${stateText ? `<p class="product-card-state">${stateText}</p>` : ""}
         <a class="${actionClass}" href="${escapeHtml(actionHref)}">${actionText}</a>
       </div>
     </article>
   `;
+}
+
+function productCardStateText(product) {
+  const remaining = productRemainingCount(product);
+  if (product.isActive === false) return "目前暫停販售，可先查看商品資訊。";
+  if (isProductUpcoming(product)) return "尚未開賣，可以先查看詳情。";
+  if (!isProductUnlimited(product) && Number(remaining || 0) <= 0) return "已售完，可 +1 等下一團。";
+  if (isProductDeadlinePassed(product) || isProductSaleEnded(product)) return "已截止，可 +1 等再開團。";
+  if (!isProductAvailable(product)) return "目前暫不可預訂。";
+  return "";
 }
 
 const productQuickFilterOptions = [
@@ -1135,7 +1153,12 @@ async function initPublicProducts() {
   categories = [...new Set([...categories, ...productDerivedCategories])];
   const requestedCategory = getParam("category");
   let selectedCategory = requestedCategory && categories.includes(requestedCategory) ? requestedCategory : "全部";
-  let selectedQuickFilter = "all";
+  const requestedFilter = getParam("filter");
+  const requestedSort = getParam("sort");
+  let selectedQuickFilter = productQuickFilterOptions.some(option => option.value === requestedFilter) ? requestedFilter : "all";
+  if (["latest", "popular", "price-desc", "price-asc"].includes(requestedSort)) {
+    sortSelect.value = requestedSort;
+  }
   let currentPage = 1;
   const pageSize = 12;
 
@@ -2874,19 +2897,17 @@ function matchingWishes(wishes, title) {
 
 function wishCard(wish, { admin = false } = {}) {
   const reply = wishAdminReply(wish);
+  const votes = Number(wish.votes || 0);
   return `
     <article class="card product-card wish-card">
       ${optimizedImage(wish.imageUrl, wish.title || "許願")}
       <div class="product-card-body">
         <div class="section-head">
           <h3>${admin ? `<button class="link-button wishDetailBtn" data-id="${wish.id}">${escapeHtml(wish.title)}</button>` : escapeHtml(wish.title)}</h3>
-          <span class="status status-orange">+1 ${Number(wish.votes || 0)}</span>
+          <span class="wish-vote-summary"><strong>${votes}</strong><span>人想買</span></span>
         </div>
         <p class="meta">${escapeHtml(wish.description || "沒有補充說明")}</p>
-        <div class="wish-progress">
-          ${wishProgressBadges(wish)}
-          ${admin ? `${wish.isActive === false ? `<span class="status status-gray">已下架</span>` : `<span class="status status-green">顯示中</span>`}` : ""}
-        </div>
+        ${wishProgressPanel(wish, { admin })}
         ${reply ? `<div class="admin-reply"><strong>管理員回覆</strong><p>${escapeHtml(reply)}</p></div>` : ""}
         <div class="pill-row">
           ${admin ? `
@@ -2909,6 +2930,40 @@ function wishIsAccepted(wish) {
 
 function wishIsOpened(wish) {
   return wish.isOpened === true || wish.opened === true || Boolean(wish.productId || wish.groupProductId) || /開團/.test(wish.status || "");
+}
+
+function wishProgressPanel(wish, { admin = false } = {}) {
+  const reply = wishAdminReply(wish);
+  return `
+    <div class="wish-progress-panel">
+      ${wishProgressSteps(wish)}
+      <div class="wish-progress-badges">
+        ${wishProgressBadges(wish)}
+        ${reply ? `<span class="status status-blue">已回覆</span>` : ""}
+        ${admin ? `${wish.isActive === false ? `<span class="status status-gray">已下架</span>` : `<span class="status status-green">顯示中</span>`}` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function wishProgressSteps(wish) {
+  const accepted = wishIsAccepted(wish);
+  const opened = wishIsOpened(wish);
+  const steps = [
+    { label: "收集 +1", active: true, current: !accepted && !opened },
+    { label: "已採納", active: accepted || opened, current: accepted && !opened },
+    { label: "已開團", active: opened, current: opened }
+  ];
+  return `
+    <div class="wish-progress-steps" aria-label="許願處理進度">
+      ${steps.map((step, index) => `
+        <span class="wish-step ${step.active ? "active" : ""} ${step.current ? "current" : ""}">
+          <span class="wish-step-dot">${index + 1}</span>
+          <span>${step.label}</span>
+        </span>
+      `).join("")}
+    </div>
+  `;
 }
 
 function wishProgressBadges(wish) {
@@ -2959,13 +3014,14 @@ function renderWishSortControls(root, selectedSort, counts, onChange) {
 function wishDetail(wish) {
   const voters = Array.isArray(wish.voters) ? wish.voters : [];
   const reply = wishAdminReply(wish);
+  const votes = Number(wish.votes || 0);
   return `
     <button class="modal-close" id="closeWishDetailModal" type="button" aria-label="關閉">×</button>
     <div class="section-head">
       <h2>${escapeHtml(wish.title)}</h2>
-      <span class="status status-orange">+1 ${Number(wish.votes || 0)}</span>
+      <span class="wish-vote-summary"><strong>${votes}</strong><span>人想買</span></span>
     </div>
-    <div class="wish-progress">${wishProgressBadges(wish)}</div>
+    ${wishProgressPanel(wish, { admin: true })}
     <div class="info-list">
       <div class="info-row"><span>說明</span><strong>${escapeHtml(wish.description || "-")}</strong></div>
       <div class="info-row"><span>許願人</span><strong>${escapeHtml(wish.customerName || "-")}</strong></div>

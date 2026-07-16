@@ -211,10 +211,40 @@ h3 {
   margin-top: 8px;
 }
 
+.section-head > div {
+  min-width: 0;
+}
+
+.section-head h2 {
+  margin: 0 0 4px;
+}
+
 .section-head p {
-  margin-bottom: 14px;
+  margin: 0;
   color: var(--muted);
   font-size: 14px;
+}
+
+.section-more {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 900;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.section-more:hover {
+  background: var(--soft);
+  box-shadow: 0 8px 18px rgba(154, 88, 32, 0.1);
+  transform: translateY(-1px);
 }
 
 .grid {
@@ -407,6 +437,34 @@ section + section {
   transform: translateY(-2px);
 }
 
+.product-card-unavailable {
+  border-color: #eadccd;
+  background: #fffdf9;
+  box-shadow: 0 6px 16px rgba(154, 88, 32, 0.05);
+}
+
+.product-card-unavailable:hover {
+  box-shadow: 0 10px 22px rgba(154, 88, 32, 0.09);
+  transform: translateY(-1px);
+}
+
+.product-card-unavailable .product-card-media img {
+  filter: grayscale(0.18);
+  opacity: 0.72;
+}
+
+.product-card-unavailable .product-card-media::after {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.18);
+  content: "";
+  pointer-events: none;
+}
+
+.product-card-reopen {
+  border-style: dashed;
+}
+
 .optimized-image {
   background:
     linear-gradient(90deg, rgba(255, 241, 223, 0.92), rgba(255, 250, 243, 0.92), rgba(255, 241, 223, 0.92)),
@@ -530,6 +588,7 @@ section + section {
   position: absolute;
   top: 8px;
   left: 8px;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   flex-direction: column;
@@ -550,11 +609,107 @@ section + section {
   margin-top: 10px;
 }
 
-.wish-progress {
+.wish-vote-summary {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  min-width: 70px;
+  padding: 7px 10px;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius);
+  background: #fff7ed;
+  color: #9a5a1f;
+  line-height: 1.1;
+}
+
+.wish-vote-summary strong {
+  color: var(--primary);
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.wish-vote-summary span {
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.wish-progress,
+.wish-progress-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 4px;
+}
+
+.wish-progress-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 10px;
+  border: 1px solid #f5e4cf;
+  border-radius: var(--radius);
+  background: #fffaf3;
+}
+
+.wish-progress-badges {
+  margin-top: 0;
+}
+
+.wish-progress-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.wish-progress-steps::before {
+  position: absolute;
+  top: 13px;
+  right: 16%;
+  left: 16%;
+  height: 2px;
+  background: #f1dec8;
+  content: "";
+}
+
+.wish-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.wish-step-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wish-step.active {
+  color: var(--primary);
+}
+
+.wish-step.active .wish-step-dot {
+  border-color: #fed7aa;
+  background: var(--primary);
+  color: #fff;
+}
+
+.wish-step.current .wish-step-dot {
+  box-shadow: 0 0 0 5px rgba(251, 146, 60, 0.12);
 }
 
 .wish-duplicate-box {
@@ -854,6 +1009,26 @@ section + section {
 .product-card-stats strong {
   color: var(--text);
   font-size: 13px;
+}
+
+.product-card-state {
+  margin: -2px 0 4px;
+  padding: 8px 10px;
+  border: 1px solid #f5e4cf;
+  border-radius: var(--radius);
+  background: #fff7ed;
+  color: #9a5a1f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.product-card-unavailable .price,
+.product-card-unavailable .product-card-stats strong {
+  color: #6f6258;
+}
+
+.product-card-unavailable .product-card-stats span {
+  background: #fff;
 }
 
 .rank-grid {

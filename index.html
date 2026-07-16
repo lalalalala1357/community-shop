@@ -20,7 +20,7 @@
   <meta name="twitter:title" content="社區小舖｜社區團購站">
   <meta name="twitter:description" content="社區小舖整理社區團購好物，先預訂、到點取貨，簡單又安心。">
   <meta name="twitter:image" content="https://lalalalala1357.github.io/community-shop/assets/og-community-shop.svg">
-  <link rel="stylesheet" href="css/styles.css?v=20260716b">
+  <link rel="stylesheet" href="css/styles.css?v=20260716c">
 </head>
 <body data-page="home">
   <div class="app-shell">
@@ -63,8 +63,11 @@
 
       <section class="container">
         <div class="section-head">
-          <h2>🔥 熱門商品</h2>
-          <p>大家最近最常預訂</p>
+          <div>
+            <h2>🔥 熱門商品</h2>
+            <p>大家最近最常預訂</p>
+          </div>
+          <a class="section-more" href="products.html?filter=popular&sort=popular">查看更多</a>
         </div>
         <div class="grid rank-grid" id="hotProductList"></div>
       </section>
@@ -72,15 +75,21 @@
       <section class="container home-commerce-grid">
         <div class="home-commerce-main">
           <div class="section-head">
-            <h2>最新商品</h2>
-            <p>剛上架的社區好物</p>
+            <div>
+              <h2>最新商品</h2>
+              <p>剛上架的社區好物</p>
+            </div>
+            <a class="section-more" href="products.html?sort=latest">查看更多</a>
           </div>
           <div class="grid product-grid featured-grid" id="latestProductList"></div>
         </div>
         <div class="home-commerce-side">
           <div class="section-head">
-            <h2>即將截止</h2>
-            <p>想買要快一點</p>
+            <div>
+              <h2>即將截止</h2>
+              <p>想買要快一點</p>
+            </div>
+            <a class="section-more" href="products.html?filter=ending">查看更多</a>
           </div>
           <div class="grid ending-grid" id="endingProductList"></div>
         </div>
@@ -88,8 +97,11 @@
 
       <section class="container reopen-section" id="homeReopenSection" hidden>
         <div class="section-head">
-          <h2>最近截止，可許願再開團</h2>
-          <p>錯過也可以 +1，票數高的優先安排</p>
+          <div>
+            <h2>最近截止，可許願再開團</h2>
+            <p>錯過也可以 +1，票數高的優先安排</p>
+          </div>
+          <a class="section-more" href="products.html?filter=reopen">查看更多</a>
         </div>
         <div class="grid product-grid featured-grid" id="homeReopenProductList"></div>
       </section>
@@ -113,6 +125,6 @@
       <a href="order-search.html">查詢</a>
     </nav>
   </div>
-  <script type="module" src="js/app.js?v=20260716e"></script>
+  <script type="module" src="js/app.js?v=20260716f"></script>
 </body>
 </html>
