@@ -494,6 +494,11 @@ function productMainImage(product) {
   return product.imageUrls?.[0] || product.imageUrl || placeholderImage(product.name);
 }
 
+function productPublicUrl(productId) {
+  const pagePath = location.pathname.includes("/community-shop-admin/") ? "/community-shop/product.html" : "product.html";
+  return new URL(`${pagePath}?id=${encodeURIComponent(productId || "")}`, location.href).href;
+}
+
 async function loadProductImages(product) {
   if (!product?.id) return product.imageUrls?.length ? product.imageUrls : (product.imageUrl ? [product.imageUrl] : []);
   if (product.imageUrls?.length > 1) return product.imageUrls;
@@ -1046,8 +1051,14 @@ async function initProductDetail() {
         ${product.pickupLocation ? `<div class="info-row"><span>取貨地點</span><strong>${escapeHtml(product.pickupLocation)}</strong></div>` : ""}
       </div>
       <div class="product-action-row">
-        ${canOrder ? `<button class="btn" id="openOrderModalBtn">立即預購</button>` : (wishable ? `<a class="btn" href="${escapeHtml(productWishHref(product))}">想再開團</a>` : `<button class="btn" disabled>暫不可預訂</button>`)}
-        <button class="btn secondary" id="shareProductBtn" type="button">分享商品</button>
+        <div class="mobile-action-summary">
+          <strong>${money(product.price)}</strong>
+          <span>${productRemainingText(product)}${product.deadline ? ` · ${deadlineCountdownText(product.deadline)}` : ""}</span>
+        </div>
+        <div class="product-action-buttons">
+          ${canOrder ? `<button class="btn" id="openOrderModalBtn">立即預購</button>` : (wishable ? `<a class="btn" href="${escapeHtml(productWishHref(product))}">想再開團</a>` : `<button class="btn" disabled>暫不可預訂</button>`)}
+          <button class="btn secondary" id="shareProductBtn" type="button">分享商品</button>
+        </div>
       </div>
       <div class="modal" id="orderModal">
         <div class="card modal-panel">
@@ -1563,6 +1574,11 @@ async function initOrderSearch() {
         ${list.length ? list.map(customerOrderCard).join("") : `<div class="empty card">目前沒有${titleMap[currentTab] || "訂單"}</div>`}
       </div>
     `;
+    $$(".copyOrderCardId", results).forEach(button => button.addEventListener("click", async () => {
+      await copyText(button.dataset.orderId || "");
+      button.textContent = "已複製";
+      setTimeout(() => { button.textContent = "複製編號"; }, 1400);
+    }));
   };
 
   $$(".orderTab").forEach(button => button.addEventListener("click", () => {
@@ -1648,7 +1664,10 @@ function customerOrderCard(order) {
         <p class="meta">取貨 ${dateText(order.pickupTime)} · ${escapeHtml(order.pickupLocation || "-")}</p>
         ${orderTimeline(order, { compact: true })}
       </div>
-      <a class="btn secondary inline" href="${detailHref}">查看詳細</a>
+      <div class="order-card-actions">
+        <button class="btn secondary inline copyOrderCardId" type="button" data-order-id="${escapeHtml(order.orderId || "")}">複製編號</button>
+        <a class="btn secondary inline" href="${detailHref}">查看詳細</a>
+      </div>
     </article>
   `;
 }
@@ -1949,6 +1968,7 @@ async function initAdminProducts() {
           <td><span class="status ${product.isActive !== false ? "status-green" : "status-gray"}">${product.isActive !== false ? "上架" : "下架"}</span></td>
           <td>
             <button class="btn secondary inline editProduct" data-id="${product.id}">編輯</button>
+            <button class="btn secondary inline copyProductLink" type="button" data-url="${escapeHtml(productPublicUrl(product.id))}">複製連結</button>
             <button class="btn danger inline deleteProduct" data-id="${product.id}">刪除</button>
           </td>
         </tr>
@@ -1957,6 +1977,11 @@ async function initAdminProducts() {
       $$(".editProduct").forEach(button => button.addEventListener("click", async () => {
         const product = currentProducts.find(item => item.id === button.dataset.id);
         await openProductModal(product);
+      }));
+      $$(".copyProductLink").forEach(button => button.addEventListener("click", async () => {
+        await copyText(button.dataset.url || "");
+        button.textContent = "已複製";
+        setTimeout(() => { button.textContent = "複製連結"; }, 1400);
       }));
       $$(".deleteProduct").forEach(button => button.addEventListener("click", async () => {
         if (confirm("確認刪除此商品？")) {
@@ -2535,6 +2560,42 @@ function wishProgressBadges(wish) {
   `;
 }
 
+const wishSortOptions = [
+  { value: "popular", label: "最多 +1", hint: "需求排行" },
+  { value: "latest", label: "最新", hint: "新願望" },
+  { value: "accepted", label: "已採納", hint: "處理中" },
+  { value: "opened", label: "已開團", hint: "可追蹤" }
+];
+
+function sortWishList(wishes, sort = "popular") {
+  const list = [...wishes];
+  const byVotes = (a, b) => Number(b.votes || 0) - Number(a.votes || 0) || createdAtMillis(b) - createdAtMillis(a);
+  if (sort === "latest") return list.sort((a, b) => createdAtMillis(b) - createdAtMillis(a));
+  if (sort === "accepted") return list.filter(wishIsAccepted).sort(byVotes);
+  if (sort === "opened") return list.filter(wishIsOpened).sort(byVotes);
+  return list.sort(byVotes);
+}
+
+function wishSortCounts(wishes) {
+  return {
+    popular: wishes.length,
+    latest: wishes.length,
+    accepted: wishes.filter(wishIsAccepted).length,
+    opened: wishes.filter(wishIsOpened).length
+  };
+}
+
+function renderWishSortControls(root, selectedSort, counts, onChange) {
+  if (!root) return;
+  root.innerHTML = wishSortOptions.map(option => `
+    <button class="quick-filter ${option.value === selectedSort ? "active" : ""}" type="button" data-sort="${option.value}" aria-pressed="${option.value === selectedSort}">
+      <span>${option.label}</span>
+      <small>${option.hint} · ${Number(counts[option.value] || 0)}</small>
+    </button>
+  `).join("");
+  $$(".quick-filter", root).forEach(button => button.addEventListener("click", () => onChange(button.dataset.sort)));
+}
+
 function wishDetail(wish) {
   const voters = Array.isArray(wish.voters) ? wish.voters : [];
   const reply = wishAdminReply(wish);
@@ -2565,6 +2626,7 @@ function wishDetail(wish) {
 
 async function initWishPool() {
   let showAllWishes = false;
+  let wishSort = "popular";
   const formRoot = $("#wishForm");
   const requestedProductId = getParam("productId");
   const requestedTitle = getParam("title");
@@ -2665,9 +2727,18 @@ async function initWishPool() {
   const render = async () => {
     const wishes = await allWishes({ activeOnly: true });
     activeWishCache = wishes;
-    const topWishes = wishes.slice(0, 5);
-    const moreWishes = wishes.slice(5);
-    $("#topWishList").innerHTML = topWishes.map(wish => wishCard(wish)).join("") || `<div class="empty card">目前還沒有熱門願望</div>`;
+    const sortedWishes = sortWishList(wishes, wishSort);
+    const topWishes = sortedWishes.slice(0, 5);
+    const moreWishes = sortedWishes.slice(5);
+    const selectedSortLabel = wishSortOptions.find(option => option.value === wishSort)?.label || "最多 +1";
+    renderWishSortControls($("#wishSortBar"), wishSort, wishSortCounts(wishes), async sort => {
+      wishSort = sort;
+      showAllWishes = false;
+      await render();
+    });
+    const summary = $("#wishSortSummary");
+    if (summary) summary.textContent = `${selectedSortLabel} · ${sortedWishes.length} 筆`;
+    $("#topWishList").innerHTML = topWishes.map(wish => wishCard(wish)).join("") || `<div class="empty card">目前沒有符合條件的願望</div>`;
     $("#allWishSection").hidden = !showAllWishes;
     $("#showAllWishesBtn").hidden = !moreWishes.length;
     $("#showAllWishesBtn").textContent = showAllWishes ? "查看更少" : "查看更多";
