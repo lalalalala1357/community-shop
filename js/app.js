@@ -563,6 +563,65 @@ function productStatusBadges(product) {
   return badges.join("");
 }
 
+function productStockProgress(product) {
+  if (isProductUnlimited(product)) return "";
+  const stockLimit = Number(product.stockLimit || 0);
+  if (!stockLimit) return "";
+  const soldCount = Math.max(Number(product.soldCount || 0), 0);
+  const remaining = productRemainingCount(product);
+  const progress = Math.min(Math.round((soldCount / stockLimit) * 100), 100);
+  const toneClass = remaining <= 0 ? "stock-progress-soldout" : (remaining <= 3 ? "stock-progress-low" : "");
+  return `
+    <div class="stock-progress ${toneClass}" aria-label="銷售進度 ${progress}%">
+      <div class="stock-progress-head">
+        <span>銷售進度</span>
+        <strong>已售 ${soldCount} / 限量 ${stockLimit}</strong>
+      </div>
+      <div class="stock-progress-bar">
+        <span style="width:${progress}%"></span>
+      </div>
+      <p>${remaining <= 0 ? "已售完，可到許願池 +1 等下一團。" : `目前剩 ${remaining} 份，送出訂單後才算保留。`}</p>
+    </div>
+  `;
+}
+
+function productOrderNotice(product, { canOrder, wishable, remaining } = {}) {
+  const soldOut = !isProductUnlimited(product) && Number(remaining || 0) <= 0;
+  const reasons = [
+    product.isActive === false ? "商品目前暫停販售" : "",
+    isProductUpcoming(product) ? "尚未開賣" : "",
+    soldOut ? "商品已售完" : "",
+    isProductDeadlinePassed(product) ? "已超過截單時間" : "",
+    isProductSaleEnded(product) ? "販售期間已結束" : ""
+  ].filter(Boolean);
+
+  const title = canOrder ? "下單前提醒" : (wishable ? "此商品目前不能下單" : "目前暫不可預訂");
+  const items = canOrder ? [
+    "送出訂單後才會保留數量。",
+    product.deadline ? `請在 ${compactDateText(product.deadline)} 前完成預訂。` : "截單時間以頁面公告為準。",
+    product.pickupTime ? `取貨時間：${compactDateText(product.pickupTime)}。` : "取貨時間以管理員通知為準。",
+    "如需修改或取消，請盡早聯絡管理員。"
+  ] : [
+    reasons.join("，") || "此商品目前無法預訂。",
+    wishable ? "可以按「想再開團」到許願池 +1。" : "可以先看看其他商品，或稍後再回來確認。",
+    wishable ? "票數越高，管理員越容易優先安排下一團。" : "如有需求也可以到許願池告訴我們。"
+  ];
+
+  return `
+    <div class="product-order-notice ${canOrder ? "" : "product-order-notice-warning"}">
+      <div>
+        <span class="notice-icon">${canOrder ? "i" : "!"}</span>
+      </div>
+      <div>
+        <h3>${title}</h3>
+        <ul>
+          ${items.filter(Boolean).map(item => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
 function sortProducts(products, sort = "latest") {
   const list = [...products];
   const sorters = {
@@ -1292,6 +1351,7 @@ async function initProductDetail() {
         <div><span>剩餘</span><strong>${isProductUnlimited(product) ? "不限量" : remaining}</strong></div>
         ${product.deadline ? `<div><span>倒數截止</span><strong>${deadlineCountdownText(product.deadline)}</strong></div>` : ""}
       </div>
+      ${productStockProgress(product)}
       <div class="product-description">${escapeHtml(product.description || "")}</div>
       <div class="info-list">
         <div class="info-row"><span>規格</span><strong>${escapeHtml(product.spec || "-")}</strong></div>
@@ -1302,6 +1362,7 @@ async function initProductDetail() {
         ${product.pickupTime ? `<div class="info-row"><span>取貨時間</span><strong>${stackedDateText(product.pickupTime)}</strong></div>` : ""}
         ${product.pickupLocation ? `<div class="info-row"><span>取貨地點</span><strong>${escapeHtml(product.pickupLocation)}</strong></div>` : ""}
       </div>
+      ${productOrderNotice(product, { canOrder, wishable, remaining })}
       <div class="product-action-row">
         <div class="mobile-action-summary">
           <strong>${money(product.price)}</strong>
