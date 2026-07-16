@@ -584,7 +584,7 @@ function productCard(product) {
   const orderable = isProductOrderable(product);
   const wishable = shouldOfferProductWish(product);
   const actionHref = wishable ? productWishHref(product) : `product.html?id=${encodeURIComponent(product.id)}`;
-  const actionText = orderable ? "我想預訂" : (wishable ? "想再開團" : "查看詳情");
+  const actionText = wishable ? "想再開團" : (orderable ? "我想預訂" : "查看詳情");
   const actionClass = orderable || wishable ? "btn" : "btn secondary";
   const statusBadges = productStatusBadges(product);
   return `
@@ -611,13 +611,61 @@ function productCard(product) {
   `;
 }
 
-function storefrontEmptyState({ recentProducts = [], keyword = "", category = "全部" } = {}) {
-  const hasFilter = Boolean(keyword) || category !== "全部";
+const productQuickFilterOptions = [
+  { value: "all", label: "全部", hint: "開團中" },
+  { value: "ending", label: "即將截止", hint: "7 天內" },
+  { value: "popular", label: "熱門", hint: "有人預訂" },
+  { value: "in-stock", label: "有庫存", hint: "可下單" },
+  { value: "reopen", label: "可再開團", hint: "去 +1" }
+];
+
+function renderProductQuickFilters(root, selectedFilter, counts = {}, onChange) {
+  if (!root) return;
+  root.innerHTML = productQuickFilterOptions.map(option => `
+    <button class="quick-filter ${option.value === selectedFilter ? "active" : ""}" type="button" data-filter="${option.value}" aria-pressed="${option.value === selectedFilter}">
+      <span>${option.label}</span>
+      <small>${option.hint} · ${Number(counts[option.value] || 0)}</small>
+    </button>
+  `).join("");
+  $$(".quick-filter", root).forEach(button => button.addEventListener("click", () => onChange(button.dataset.filter)));
+}
+
+function storefrontEmptyState({ recentProducts = [], keyword = "", category = "全部", quickFilter = "all" } = {}) {
+  const hasFilter = Boolean(keyword) || category !== "全部" || quickFilter !== "all";
+  const quickFilterEmptyCopy = {
+    ending: {
+      eyebrow: "沒有即將截止",
+      title: "目前不用急著下單",
+      message: "可以回到全部商品慢慢逛，或看看其他分類。"
+    },
+    popular: {
+      eyebrow: "目前沒有熱門商品",
+      title: "新商品正在累積人氣",
+      message: "可以先逛最新商品，喜歡的先預訂。"
+    },
+    "in-stock": {
+      eyebrow: "目前沒有可下單庫存",
+      title: "這個條件暫時沒有商品",
+      message: "可以換個分類或清除搜尋條件看看。"
+    },
+    reopen: {
+      eyebrow: "目前沒有可再開團商品",
+      title: "最近沒有適合 +1 的截止商品",
+      message: "可以到許願池直接告訴我們想買什麼。"
+    }
+  };
+  const copy = quickFilter !== "all"
+    ? quickFilterEmptyCopy[quickFilter]
+    : {
+        eyebrow: hasFilter ? "找不到符合條件" : "目前沒有開團商品",
+        title: hasFilter ? "換個關鍵字或分類看看" : "新一波好物準備中",
+        message: hasFilter ? "可以清除搜尋條件，或先看看最近截止的商品。" : "商品可能已超過截單時間。可以先到許願池告訴我們想買什麼。"
+      };
   return `
     <div class="card card-body storefront-empty">
-      <p class="eyebrow">${hasFilter ? "找不到符合條件" : "目前沒有開團商品"}</p>
-      <h2>${hasFilter ? "換個關鍵字或分類看看" : "新一波好物準備中"}</h2>
-      <p class="muted">${hasFilter ? "可以清除搜尋條件，或先看看最近截止的商品。" : "商品可能已超過截單時間。可以先到許願池告訴我們想買什麼。"}</p>
+      <p class="eyebrow">${copy.eyebrow}</p>
+      <h2>${copy.title}</h2>
+      <p class="muted">${copy.message}</p>
       <div class="pill-row">
         <a class="btn inline" href="wish.html">去許願池 +1</a>
         <a class="btn secondary inline" href="order-search.html">查詢訂單</a>
@@ -760,6 +808,7 @@ function featuredProductLimit() {
 async function initPublicProducts() {
   const productList = $("#productList");
   const categoryFilter = $("#categoryFilter");
+  const quickFilterRoot = $("#productQuickFilters");
   const searchInput = $("#productSearch");
   const sortSelect = $("#productSort");
   const reopenSection = $("#productReopenSection");
@@ -771,31 +820,52 @@ async function initPublicProducts() {
   const productDerivedCategories = [...new Set(allProducts.map(product => product.category || "其他"))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   categories = [...new Set([...categories, ...productDerivedCategories])];
   let selectedCategory = "全部";
+  let selectedQuickFilter = "all";
   let currentPage = 1;
   const pageSize = 12;
 
-  const filteredProducts = () => {
+  const matchesVisibleFilters = product => {
     const keyword = searchInput.value.trim().toLowerCase();
-    const filtered = products.filter(product => {
-      const matchesCategory = selectedCategory === "全部" || (product.category || "其他") === selectedCategory;
-      const matchesKeyword = !keyword || productSearchText(product).includes(keyword);
-      return matchesCategory && matchesKeyword;
-    });
-    return sortProducts(filtered, sortSelect.value);
+    const matchesCategory = selectedCategory === "全部" || (product.category || "其他") === selectedCategory;
+    const matchesKeyword = !keyword || productSearchText(product).includes(keyword);
+    return matchesCategory && matchesKeyword;
+  };
+
+  const quickFilterCounts = () => {
+    const matchingProducts = products.filter(matchesVisibleFilters);
+    const matchingAllProducts = allProducts.filter(matchesVisibleFilters);
+    return {
+      all: matchingProducts.length,
+      ending: matchingProducts.filter(product => isDeadlineSoon(product.deadline, 168)).length,
+      popular: matchingProducts.filter(product => Number(product.soldCount || 0) > 0).length,
+      "in-stock": matchingProducts.filter(isProductAvailable).length,
+      reopen: recentEndedProducts(matchingAllProducts, 99).length
+    };
+  };
+
+  const filteredProducts = () => {
+    const matchingProducts = products.filter(matchesVisibleFilters);
+    const matchingAllProducts = allProducts.filter(matchesVisibleFilters);
+    if (selectedQuickFilter === "ending") return sortProducts(matchingProducts.filter(product => isDeadlineSoon(product.deadline, 168)), "deadline");
+    if (selectedQuickFilter === "popular") return sortProducts(matchingProducts.filter(product => Number(product.soldCount || 0) > 0), "popular");
+    if (selectedQuickFilter === "in-stock") return sortProducts(matchingProducts.filter(isProductAvailable), sortSelect.value);
+    if (selectedQuickFilter === "reopen") return recentEndedProducts(matchingAllProducts, 99);
+    return sortProducts(matchingProducts, sortSelect.value);
   };
 
   const render = () => {
     const keyword = searchInput.value.trim().toLowerCase();
-    const matchingAllProducts = allProducts.filter(product => {
-      const matchesCategory = selectedCategory === "全部" || (product.category || "其他") === selectedCategory;
-      const matchesKeyword = !keyword || productSearchText(product).includes(keyword);
-      return matchesCategory && matchesKeyword;
-    });
+    const matchingAllProducts = allProducts.filter(matchesVisibleFilters);
     const list = filteredProducts();
     const reopenProducts = recentEndedProducts(matchingAllProducts, 8);
     const totalPages = Math.max(Math.ceil(list.length / pageSize), 1);
     currentPage = Math.min(currentPage, totalPages);
     const visible = list.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    renderProductQuickFilters(quickFilterRoot, selectedQuickFilter, quickFilterCounts(), filter => {
+      selectedQuickFilter = filter;
+      currentPage = 1;
+      render();
+    });
     productList.innerHTML = visible.length
       ? `${visible.map(productCard).join("")}${totalPages > 1 ? `
           <div class="pagination">
@@ -807,9 +877,10 @@ async function initPublicProducts() {
       : storefrontEmptyState({
           recentProducts: reopenProducts,
           keyword,
-          category: selectedCategory
+          category: selectedCategory,
+          quickFilter: selectedQuickFilter
         });
-    renderReopenProductSection(reopenSection, reopenList, list.length ? reopenProducts : []);
+    renderReopenProductSection(reopenSection, reopenList, selectedQuickFilter === "reopen" ? [] : (list.length ? reopenProducts : []));
     $("[data-page-prev]", productList)?.addEventListener("click", () => {
       currentPage -= 1;
       render();

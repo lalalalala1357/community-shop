@@ -871,6 +871,64 @@ section + section {
   margin: 0 0 16px;
 }
 
+.quick-filter-bar {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 0 14px;
+  padding: 2px 0 4px;
+  scrollbar-width: none;
+}
+
+.quick-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-filter {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-width: 112px;
+  min-height: 58px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.quick-filter:hover {
+  border-color: #fed7aa;
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.quick-filter.active {
+  border-color: var(--primary);
+  background: var(--soft);
+  color: var(--primary);
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.12);
+}
+
+.quick-filter span {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.quick-filter small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-filter.active small {
+  color: #9a5a1f;
+}
+
 .product-controls {
   display: grid;
   gap: 12px;
