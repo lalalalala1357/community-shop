@@ -96,8 +96,59 @@ const statusMap = {
 const statusOptions = ["已下單", "可取貨", "已取貨"];
 const activeOrderStatuses = ["已下單", "可取貨"];
 const historyOrderStatuses = ["已取貨", "已取消", "未取貨"];
+const publicSiteBaseUrl = "https://lalalalala1357.github.io/community-shop/";
+const defaultShareImageUrl = new URL("assets/og-community-shop.svg", publicSiteBaseUrl).href;
+
 function getParam(name) {
   return new URLSearchParams(location.search).get(name);
+}
+
+function publicSiteUrl(path = "") {
+  return new URL(path, publicSiteBaseUrl).href;
+}
+
+function setMetaContent(selector, content) {
+  if (!content) return;
+  let meta = document.head.querySelector(selector);
+  if (!meta) {
+    meta = document.createElement("meta");
+    const propertyMatch = selector.match(/\[property="([^"]+)"\]/);
+    const nameMatch = selector.match(/\[name="([^"]+)"\]/);
+    if (propertyMatch) meta.setAttribute("property", propertyMatch[1]);
+    if (nameMatch) meta.setAttribute("name", nameMatch[1]);
+    document.head.append(meta);
+  }
+  meta.setAttribute("content", content);
+}
+
+function setCanonicalUrl(url) {
+  if (!url) return;
+  let link = document.head.querySelector('link[rel="canonical"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.setAttribute("rel", "canonical");
+    document.head.append(link);
+  }
+  link.setAttribute("href", url);
+}
+
+function setPageShareMeta({ title, description, url, image = defaultShareImageUrl, type = "website" }) {
+  if (title) document.title = title;
+  setCanonicalUrl(url);
+  setMetaContent('meta[name="description"]', description);
+  setMetaContent('meta[property="og:title"]', title);
+  setMetaContent('meta[property="og:description"]', description);
+  setMetaContent('meta[property="og:url"]', url);
+  setMetaContent('meta[property="og:type"]', type);
+  setMetaContent('meta[property="og:image"]', image);
+  setMetaContent('meta[property="og:image:alt"]', title);
+  setMetaContent('meta[name="twitter:title"]', title);
+  setMetaContent('meta[name="twitter:description"]', description);
+  setMetaContent('meta[name="twitter:image"]', image);
+}
+
+function shareImageUrl(src) {
+  return /^https?:\/\//.test(src || "") ? src : defaultShareImageUrl;
 }
 
 function statusBadge(status) {
@@ -139,6 +190,68 @@ function handleOptimizedImageError(event) {
 
 document.addEventListener("load", handleOptimizedImageLoad, true);
 document.addEventListener("error", handleOptimizedImageError, true);
+
+function skeletonLine(className = "") {
+  return `<span class="skeleton-line ${className}" aria-hidden="true"></span>`;
+}
+
+function productCardSkeletons(count = 4) {
+  return Array.from({ length: count }, () => `
+    <article class="card product-card product-card-skeleton" aria-hidden="true">
+      <div class="skeleton-box skeleton-media"></div>
+      <div class="product-card-body">
+        <div class="product-card-top">
+          ${skeletonLine("skeleton-pill")}
+          ${skeletonLine("skeleton-short")}
+        </div>
+        ${skeletonLine("skeleton-title")}
+        ${skeletonLine("skeleton-price")}
+        ${skeletonLine("skeleton-medium")}
+        <div class="product-card-stats">
+          <span>${skeletonLine("skeleton-tiny")}${skeletonLine("skeleton-short")}</span>
+          <span>${skeletonLine("skeleton-tiny")}${skeletonLine("skeleton-short")}</span>
+        </div>
+      </div>
+    </article>
+  `).join("");
+}
+
+function compactProductSkeletons(count = 3) {
+  return Array.from({ length: count }, () => `
+    <article class="card ending-card skeleton-ending-card" aria-hidden="true">
+      <div class="skeleton-box skeleton-thumb"></div>
+      <div>
+        ${skeletonLine("skeleton-pill")}
+        ${skeletonLine("skeleton-title")}
+        ${skeletonLine("skeleton-medium")}
+      </div>
+    </article>
+  `).join("");
+}
+
+function productDetailSkeleton() {
+  return `
+    <div class="card product-detail-skeleton" aria-hidden="true">
+      <div class="skeleton-box skeleton-gallery"></div>
+    </div>
+    <div class="card card-body product-detail-skeleton" aria-hidden="true">
+      <div class="pill-row">${skeletonLine("skeleton-pill")}${skeletonLine("skeleton-pill")}</div>
+      ${skeletonLine("skeleton-heading")}
+      ${skeletonLine("skeleton-price")}
+      <div class="product-metrics">
+        <div>${skeletonLine("skeleton-tiny")}${skeletonLine("skeleton-short")}</div>
+        <div>${skeletonLine("skeleton-tiny")}${skeletonLine("skeleton-short")}</div>
+        <div>${skeletonLine("skeleton-tiny")}${skeletonLine("skeleton-short")}</div>
+      </div>
+      ${skeletonLine("skeleton-text")}
+      ${skeletonLine("skeleton-text")}
+      <div class="product-action-buttons">
+        ${skeletonLine("skeleton-button")}
+        ${skeletonLine("skeleton-button")}
+      </div>
+    </div>
+  `;
+}
 
 function normalizeProduct(id, data) {
   const product = { id, soldCount: 0, stockLimit: 0, stockUnlimited: false, isActive: true, category: "其他", saleStart: "", saleEnd: "", imageUrl: "", imageUrls: [], ...data };
@@ -495,8 +608,7 @@ function productMainImage(product) {
 }
 
 function productPublicUrl(productId) {
-  const pagePath = location.pathname.includes("/community-shop-admin/") ? "/community-shop/product.html" : "product.html";
-  return new URL(`${pagePath}?id=${encodeURIComponent(productId || "")}`, location.href).href;
+  return publicSiteUrl(`product.html?id=${encodeURIComponent(productId || "")}`);
 }
 
 async function loadProductImages(product) {
@@ -696,9 +808,10 @@ async function initHome() {
   const homeReopenSection = $("#homeReopenSection");
   const homeReopenProductList = $("#homeReopenProductList");
   announcementList.innerHTML = `<span>公告讀取中...</span>`;
-  [hotProductList, latestProductList, endingProductList, homeReopenProductList].forEach(root => {
-    if (root) root.innerHTML = `<div class="empty card">商品讀取中...</div>`;
-  });
+  if (hotProductList) hotProductList.innerHTML = productCardSkeletons(3);
+  if (latestProductList) latestProductList.innerHTML = productCardSkeletons(featuredProductLimit());
+  if (endingProductList) endingProductList.innerHTML = compactProductSkeletons(3);
+  if (homeReopenProductList) homeReopenProductList.innerHTML = productCardSkeletons(3);
   const [announcements, products, allProducts] = await Promise.all([activeAnnouncements(), activeProducts(), publicProducts()]);
   announcementList.innerHTML = announcementTicker(announcements);
   renderHomeProductSections({ hotProductList, latestProductList, endingProductList, homeSpotlightSection, homeSpotlight, homeReopenSection, homeReopenProductList }, products, allProducts);
@@ -818,7 +931,7 @@ async function initPublicProducts() {
   const sortSelect = $("#productSort");
   const reopenSection = $("#productReopenSection");
   const reopenList = $("#productReopenList");
-  productList.innerHTML = `<div class="empty card">商品讀取中...</div>`;
+  productList.innerHTML = productCardSkeletons(8);
   const allProducts = await publicProducts();
   let products = allProducts.filter(product => isProductOnSale(product) && !isProductDeadlinePassed(product));
   let categories = await publicProductCategories();
@@ -956,7 +1069,7 @@ async function initPagedProductList(productList, categoryFilter, categories) {
       productList.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     $("[data-page-next]", productList)?.addEventListener("click", async () => {
-      productList.innerHTML = `<div class="empty card">商品讀取中...</div>`;
+      productList.innerHTML = productCardSkeletons(6);
       const nextPage = await activeProductsPage({ category: selectedCategory, cursor: pages[currentPage - 1]?.cursor, pageSize });
       pages[currentPage] = nextPage;
       currentPage += 1;
@@ -969,7 +1082,7 @@ async function initPagedProductList(productList, categoryFilter, categories) {
   const loadFirstPage = async () => {
     currentPage = 1;
     pages = [];
-    productList.innerHTML = `<div class="empty card">商品讀取中...</div>`;
+    productList.innerHTML = productCardSkeletons(6);
     const firstPage = await activeProductsPage({ category: selectedCategory, pageSize });
     pages[0] = firstPage;
     renderProducts(firstPage);
@@ -1003,7 +1116,10 @@ async function nextOrderId() {
 async function initProductDetail() {
   const id = getParam("id");
   const root = $("#productDetail");
+  root.innerHTML = productDetailSkeleton();
+  root.setAttribute("aria-busy", "true");
   if (!id) {
+    root.removeAttribute("aria-busy");
     root.innerHTML = `<div class="notice">缺少商品 ID</div>`;
     return;
   }
@@ -1011,16 +1127,31 @@ async function initProductDetail() {
   const productRef = doc(db, "products", id);
   const productSnap = await getDoc(productRef);
   if (!productSnap.exists()) {
+    root.removeAttribute("aria-busy");
     root.innerHTML = `<div class="notice">找不到商品</div>`;
     return;
   }
 
   const product = normalizeProduct(productSnap.id, productSnap.data());
   await loadProductImages(product);
+  const shareUrl = productPublicUrl(product.id);
+  const shareDescription = [
+    `${product.name} ${money(product.price)}`,
+    [product.brand, product.spec].filter(Boolean).join(" · "),
+    product.deadline ? `${deadlineCountdownText(product.deadline)}截止` : ""
+  ].filter(Boolean).join("｜");
+  setPageShareMeta({
+    title: `${product.name}｜社區小舖`,
+    description: shareDescription,
+    url: shareUrl,
+    image: shareImageUrl(productMainImage(product)),
+    type: "product"
+  });
   const remaining = Math.max(Number(product.stockLimit || 0) - Number(product.soldCount || 0), 0);
   const canOrder = isProductOrderable(product) && (isProductUnlimited(product) || remaining > 0);
   const wishable = shouldOfferProductWish(product, remaining);
   const statusBadges = productStatusBadges(product);
+  root.removeAttribute("aria-busy");
   root.innerHTML = `
     <div class="card">
       ${productGallery(product)}
@@ -1098,8 +1229,8 @@ async function initProductDetail() {
     </div>
     <section class="related-section" id="relatedProductsSection" hidden>
       <div class="section-head">
-        <h2>你可能也想買</h2>
-        <p>同分類與熱門商品</p>
+        <h2 id="relatedProductsTitle">同分類推薦</h2>
+        <p id="relatedProductsSubtitle">幫你整理相近商品</p>
       </div>
       <div class="grid product-grid featured-grid" id="relatedProductsList"></div>
     </section>
@@ -1112,13 +1243,13 @@ async function initProductDetail() {
     const shareData = {
       title: product.name,
       text: `${product.name} ${money(product.price)}`,
-      url: location.href
+      url: shareUrl
     };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await copyText(location.href);
+        await copyText(shareUrl);
         button.textContent = "已複製連結";
         setTimeout(() => { button.textContent = "分享商品"; }, 1600);
       }
@@ -1211,11 +1342,22 @@ async function renderRelatedProducts(currentProduct) {
   const section = $("#relatedProductsSection");
   const listRoot = $("#relatedProductsList");
   if (!section || !listRoot) return;
+  const titleRoot = $("#relatedProductsTitle");
+  const subtitleRoot = $("#relatedProductsSubtitle");
+  section.hidden = false;
+  listRoot.innerHTML = productCardSkeletons(4);
 
   try {
     const products = await publicProducts();
     const relatedProducts = recommendedProducts(currentProduct, products, 4);
     section.hidden = !relatedProducts.length;
+    if (!relatedProducts.length) return;
+    const category = currentProduct.category || "其他";
+    const sameCategoryCount = relatedProducts.filter(product => (product.category || "其他") === category).length;
+    if (titleRoot) titleRoot.textContent = sameCategoryCount ? `${category}也可以看看` : "熱門商品推薦";
+    if (subtitleRoot) subtitleRoot.textContent = sameCategoryCount
+      ? `同分類商品優先推薦，再補上熱門好物`
+      : `這個分類暫時沒有其他商品，先看看熱門品項`;
     listRoot.innerHTML = relatedProducts.map(productCard).join("");
   } catch (error) {
     console.warn("Related products unavailable", error);

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">社區小舖</title>
+  <desc id="desc">社區團購站分享預覽圖</desc>
+  <rect width="1200" height="630" fill="#fffaf3"/>
+  <rect x="74" y="72" width="1052" height="486" rx="36" fill="#ffffff" stroke="#f1dec8" stroke-width="4"/>
+  <circle cx="982" cy="154" r="104" fill="#fff1df"/>
+  <circle cx="164" cy="480" r="74" fill="#fed7aa"/>
+  <rect x="152" y="146" width="206" height="206" rx="32" fill="#fb923c"/>
+  <path d="M198 244h114l-14 76H212l-14-76Z" fill="#fffaf3"/>
+  <path d="M218 244c0-46 74-46 74 0" fill="none" stroke="#fffaf3" stroke-width="18" stroke-linecap="round"/>
+  <text x="420" y="244" fill="#34251b" font-family="Arial, 'Noto Sans TC', sans-serif" font-size="78" font-weight="800">社區小舖</text>
+  <text x="424" y="314" fill="#7c6758" font-family="Arial, 'Noto Sans TC', sans-serif" font-size="34" font-weight="700">先預訂，到點取貨</text>
+  <text x="424" y="374" fill="#7c6758" font-family="Arial, 'Noto Sans TC', sans-serif" font-size="30">社區團購好物、零食、生鮮與日常用品</text>
+  <g font-family="Arial, 'Noto Sans TC', sans-serif" font-size="26" font-weight="700">
+    <rect x="424" y="426" width="134" height="52" rx="26" fill="#fff1df"/>
+    <text x="491" y="461" text-anchor="middle" fill="#9a581f">社區面交</text>
+    <rect x="578" y="426" width="134" height="52" rx="26" fill="#fff1df"/>
+    <text x="645" y="461" text-anchor="middle" fill="#9a581f">每週精選</text>
+    <rect x="732" y="426" width="134" height="52" rx="26" fill="#fff1df"/>
+    <text x="799" y="461" text-anchor="middle" fill="#9a581f">簡單預訂</text>
+  </g>
+</svg>
