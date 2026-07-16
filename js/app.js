@@ -472,6 +472,7 @@ function productRemainingText(product) {
 
 function productWishHref(product) {
   const params = new URLSearchParams();
+  params.set("reopen", "1");
   if (product.id) params.set("productId", product.id);
   if (product.name) params.set("title", product.name);
   const description = [product.brand, product.spec].filter(Boolean).join(" / ");
@@ -617,6 +618,24 @@ function productOrderNotice(product, { canOrder, wishable, remaining } = {}) {
         <ul>
           ${items.filter(Boolean).map(item => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
+      </div>
+    </div>
+  `;
+}
+
+function productContinueActions(product, { canOrder, wishable } = {}) {
+  const category = product.category || "其他";
+  const categoryHref = `products.html?category=${encodeURIComponent(category)}`;
+  return `
+    <div class="product-next-actions">
+      <div>
+        <h3>${canOrder ? "還想再看看？" : "接下來可以這樣做"}</h3>
+        <p>${canOrder ? "可以先看看同分類商品，或回到全部商品繼續逛。" : "這團不能下單時，可以 +1 等再開團，或先看看其他商品。"}</p>
+      </div>
+      <div class="product-next-buttons">
+        <a class="btn secondary inline" href="${escapeHtml(categoryHref)}">看同分類</a>
+        <a class="btn secondary inline" href="products.html">回全部商品</a>
+        ${wishable ? `<a class="btn inline" href="${escapeHtml(productWishHref(product))}">去 +1 再開團</a>` : `<a class="btn secondary inline" href="wish.html">去許願池</a>`}
       </div>
     </div>
   `;
@@ -1114,7 +1133,8 @@ async function initPublicProducts() {
   let categories = await publicProductCategories();
   const productDerivedCategories = [...new Set(allProducts.map(product => product.category || "其他"))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   categories = [...new Set([...categories, ...productDerivedCategories])];
-  let selectedCategory = "全部";
+  const requestedCategory = getParam("category");
+  let selectedCategory = requestedCategory && categories.includes(requestedCategory) ? requestedCategory : "全部";
   let selectedQuickFilter = "all";
   let currentPage = 1;
   const pageSize = 12;
@@ -1374,6 +1394,7 @@ async function initProductDetail() {
           <a class="btn secondary line-share-btn" id="lineShareProductBtn" href="${escapeHtml(lineShareUrl(shareUrl, shareText))}" target="_blank" rel="noopener noreferrer">LINE 分享</a>
         </div>
       </div>
+      ${productContinueActions(product, { canOrder, wishable })}
       <div class="modal" id="orderModal">
         <div class="card modal-panel">
           <button class="modal-close" id="closeOrderModal" type="button" aria-label="關閉">×</button>
@@ -1400,6 +1421,13 @@ async function initProductDetail() {
                 <button type="button" data-quantity-action="increase" aria-label="增加數量">+</button>
               </div>
               <p class="meta">${isProductUnlimited(product) ? "不限量供應" : `最多可預訂 ${remaining} 份`}</p>
+            </div>
+            <div class="checkout-summary">
+              <div class="checkout-summary-row"><span>單價</span><strong>${money(product.price)}</strong></div>
+              <div class="checkout-summary-row"><span>數量</span><strong id="checkoutSummaryQuantity">1</strong></div>
+              ${product.pickupTime ? `<div class="checkout-summary-row"><span>取貨時間</span><strong>${compactDateText(product.pickupTime)}</strong></div>` : ""}
+              ${product.pickupLocation ? `<div class="checkout-summary-row"><span>取貨地點</span><strong>${escapeHtml(product.pickupLocation)}</strong></div>` : ""}
+              <p>送出後會產生訂單編號，請保留訂單資訊方便查詢。</p>
             </div>
             <div class="order-estimate">
               <span>預估總金額</span>
@@ -1501,6 +1529,7 @@ function initOrderQuantityControls({ unitPrice, maxQuantity = Infinity } = {}) {
   const form = $("#orderForm");
   const input = $("#orderQuantity", form);
   const totalRoot = $("#orderEstimateTotal", form);
+  const quantitySummaryRoot = $("#checkoutSummaryQuantity", form);
   if (!form || !input || !totalRoot) return;
 
   const max = Number.isFinite(maxQuantity) ? Math.max(Number(maxQuantity || 1), 1) : Infinity;
@@ -1512,6 +1541,7 @@ function initOrderQuantityControls({ unitPrice, maxQuantity = Infinity } = {}) {
     const quantity = clampQuantity(input.value);
     input.value = String(quantity);
     totalRoot.textContent = money(Number(unitPrice || 0) * quantity);
+    if (quantitySummaryRoot) quantitySummaryRoot.textContent = String(quantity);
   };
 
   $$("[data-quantity-action]", form).forEach(button => {
@@ -2961,10 +2991,13 @@ async function initWishPool() {
   const requestedProductId = getParam("productId");
   const requestedTitle = getParam("title");
   const requestedDescription = getParam("description");
+  const requestedReopen = getParam("reopen") === "1";
   const titleInput = $("input[name='title']", formRoot);
   const phoneInput = $("input[name='phone']", formRoot);
   const duplicateBox = $("#wishDuplicateBox");
   const prefillMessages = [];
+  const savedWishMessage = sessionStorage.getItem("wishSuccessMessage") || "";
+  if (savedWishMessage) sessionStorage.removeItem("wishSuccessMessage");
   let activeWishCache = [];
 
   const bindDuplicateVoteButtons = afterVote => {
@@ -2978,7 +3011,7 @@ async function initWishPool() {
       button.textContent = "+1 中...";
       try {
         await voteWish(button.dataset.id, phone);
-        showToast("已幫你 +1！");
+        showToast(requestedReopen ? "已加入再開團 +1！" : "已幫你 +1！");
         await afterVote();
       } catch (error) {
         showToast(error.message || "+1 失敗，請再試一次。", "danger");
@@ -3051,7 +3084,15 @@ async function initWishPool() {
   }
 
   if (prefillMessages.length) {
-    $("#wishMessage").innerHTML = `<div class="notice">已帶入${prefillMessages.join("與")}，補上聯絡資訊就可以送出許願。</div>`;
+    const prefillText = requestedReopen
+      ? "已帶入想再開團的商品，補上聯絡資訊即可加入再開團清單；若下方已有相同願望，可以直接 +1。"
+      : `已帶入${prefillMessages.join("與")}，補上聯絡資訊就可以送出許願。`;
+    $("#wishMessage").innerHTML = [
+      savedWishMessage ? `<div class="notice">${escapeHtml(savedWishMessage)}</div>` : "",
+      `<div class="notice">${prefillText}</div>`
+    ].filter(Boolean).join("");
+  } else if (savedWishMessage) {
+    $("#wishMessage").innerHTML = `<div class="notice">${escapeHtml(savedWishMessage)}</div>`;
   }
 
   const render = async () => {
@@ -3120,6 +3161,7 @@ async function initWishPool() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      sessionStorage.setItem("wishSuccessMessage", requestedReopen ? "已加入再開團清單，票數越高越容易優先安排。" : "已收到你的許願，會列入下次開團參考。");
       location.reload();
     } catch (error) {
       submitButton.disabled = false;

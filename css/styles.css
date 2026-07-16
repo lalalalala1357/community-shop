@@ -1416,6 +1416,33 @@ textarea {
   font-size: 13px;
 }
 
+.product-next-actions {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fffaf3;
+}
+
+.product-next-actions h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.product-next-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.product-next-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .product-action-row {
   display: grid;
   gap: 10px;
@@ -1538,6 +1565,38 @@ textarea {
   color: var(--primary);
   font-size: 22px;
   font-weight: 900;
+}
+
+.checkout-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fffaf3;
+}
+
+.checkout-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.checkout-summary-row span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.checkout-summary-row strong {
+  text-align: right;
+  font-size: 14px;
+}
+
+.checkout-summary p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .success-panel {
@@ -2544,6 +2603,10 @@ tbody tr:hover {
 
   body[data-page="product"] .product-action-row .btn {
     min-height: 46px;
+  }
+
+  .product-next-buttons {
+    grid-template-columns: 1fr;
   }
 
   .success-panel {
