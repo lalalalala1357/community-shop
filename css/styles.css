@@ -2544,26 +2544,25 @@ tbody tr:hover {
   }
 
   body[data-page="product"] {
-    padding-bottom: calc(188px + env(safe-area-inset-bottom));
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
 
   body[data-page="product"] main {
-    padding-bottom: 210px;
+    padding-bottom: 86px;
   }
 
   body[data-page="product"] .product-action-row {
-    position: fixed;
-    right: 0;
+    position: sticky;
     bottom: calc(58px + env(safe-area-inset-bottom));
-    left: 0;
-    z-index: 35;
+    z-index: 12;
     grid-template-columns: 1fr;
     gap: 8px;
-    margin: 0;
-    padding: 10px 16px;
-    border-top: 1px solid var(--border);
+    margin: 14px -4px 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 -10px 24px rgba(154, 88, 32, 0.12);
+    box-shadow: 0 10px 24px rgba(154, 88, 32, 0.12);
     backdrop-filter: blur(12px);
   }
 
